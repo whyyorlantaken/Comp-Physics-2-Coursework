@@ -90,7 +90,7 @@ class OrbitalSystem:
         # Get initial conditions
         self.s0 = self.initial_conditions()
 
-        # Get Schwarzschild radius components
+        # Get Schwarzschild components
         self.s_radius = self.schwarzschild_radius()
         angle = np.linspace(0, 2*np.pi, 100)
         self.s_radius_x = self.s_radius * np.cos(angle)
@@ -98,14 +98,18 @@ class OrbitalSystem:
 
         # Save them if needed
         if save_start:
+            self.save_start()
 
-            # Create directory if it doesn't exist
-            if not os.path.exists("outputfolder"):
-                os.makedirs("outputfolder")
+    def save_start(self):
+        """
+        """
+        # Create directory if it doesn't exist
+        if not os.path.exists("outputfolder"):
+            os.makedirs("outputfolder")
 
-            # Save them
-            plot_orbit(self.s0, self.s_radius_x, self.s_radius_y,
-                       save_start, False, "outputfolder", "orbit-start.png")
+        # Save
+        plot_orbit(self.s0, self.s_radius_x, self.s_radius_y,
+                    True, False, "outputfolder", f"M{self.M:.1e}-a{self.a:.1f}-e{self.e:.3f}.png")
 
     def initial_conditions(self):
         """
@@ -168,10 +172,11 @@ class CelestialIntegrator(OrbitalSystem):
             # Compute the slopes
             k1 = np.array(slope_func(self.t_eval[i], self.S[i]))
             k2 = np.array(slope_func(self.t_eval[i] + self.dt/2, self.S[i] + self.dt*k1/2))
-            k3 = np.array(slope_func(self.t_eval[i] + self.dt, self.S[i] + self.dt*k2))
+            k3 = np.array(slope_func(self.t_eval[i] + self.dt/2, self.S[i] + self.dt*k2/2))
+            k4 = np.array(slope_func(self.t_eval[i] + self.dt, self.S[i] + self.dt*k3))
 
             # Update the state vector
-            self.S[i + 1] = self.S[i] + (self.dt/6)*(k1 + 4*k2 + k3)
+            self.S[i + 1] = self.S[i] + self.dt*(k1 + 2*k2 + 2*k3 + k4)/6
 
         return self.t_eval, self.S
 
@@ -257,23 +262,26 @@ class CelestialIntegrator(OrbitalSystem):
 
         # Save results
         if save: 
-            self.save(t_sol, S_sol, method, relativistic, N)
+            self.save_solutions(t_sol, S_sol, method, relativistic, N)
 
         return t_sol, S_sol
 
-    def save(self, 
-             t_sol: np.ndarray,
-             S_sol: np.ndarray, 
-             method: str, 
-             relativistic: bool,
-             N: float):
+    def save_solutions(self, 
+                       t_sol: np.ndarray,
+                       S_sol: np.ndarray, 
+                       method: str, 
+                       relativistic: bool,
+                       N: float):
         """
         Save simulation results to HDF5 format with core metadata.
         """
+        # Create directory if it doesn't exist
+        if not os.path.exists("outputfolder"):
+            os.makedirs("outputfolder")
         
         # Descriptive filename
         ode_type = "relat" if relativistic else "class"
-        filename = f"e{self.e:.3f}-{ode_type}-{method}.h5"
+        filename = f"M{self.M:.1e}-a{self.a:.1f}-e{self.e:.3f}-{ode_type}-{method}.h5"
         filepath = os.path.join("outputfolder", filename)
         
         # Save
@@ -350,9 +358,9 @@ class CelestialIntegrator(OrbitalSystem):
 
 if __name__ == "__main__":
 
-    integrator = CelestialIntegrator(M=7.83e6, a=1.0, e=0.00167, save_start=True)
-    t_sol, S_sol = integrator.integrate(N=50, steps=10000, method='SPY', relativistic=True, save=False)
+    sys = OrbitalSystem(M=7.83e6, a=1.0, e=0.0167, save_start=True)
 
-    # Plot the orbit
-    plot_orbit(S_sol, integrator.s_radius_x, integrator.s_radius_y,
-               True, False, "outputfolder", "orbit-test.png")
+    # integrator = CelestialIntegrator(M=7.83e6, a=1.0, e=0.00167, save_start=True)
+    # t_sol, S_sol = integrator.integrate(N=50, steps=10000, method='SPY', relativistic=True, save=False)
+
+
