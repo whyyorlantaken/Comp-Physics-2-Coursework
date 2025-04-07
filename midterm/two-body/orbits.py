@@ -1,5 +1,5 @@
 """
-My module.
+Celestia package.
 """
 import os
 import time
@@ -7,6 +7,7 @@ import h5py
 
 import numpy as np
 
+import imageio.v2 as imageio
 import matplotlib.pyplot as plt
 plt.style.use('dark_background')
 
@@ -42,7 +43,7 @@ def plot_orbit( S_sol, s_radius_x, s_radius_y, save, show, directory, name):
     # Labels and title
     plt.xlabel('x [AU]')
     plt.ylabel('y [AU]')
-    plt.title('Planet orbit around a black hole')
+    plt.title('Planet orbit around the black hole')
     plt.legend(loc=(1.05, 0.42))
     
     plt.axis('equal')
@@ -65,7 +66,7 @@ def plot_orbit( S_sol, s_radius_x, s_radius_y, save, show, directory, name):
 
 # ----------------- Classes ----------------
 
-class OrbitalSystem:
+class OrbitBirther:
     """
     Physical constants and unit conversions.
     """
@@ -82,16 +83,18 @@ class OrbitalSystem:
         self.a = a
         self.e = e
 
-        # Distance restriction
-        if self.a < 0 or self.a < self.schwarzschild_radius():
+        # Schwarzschild radius
+        self.s_radius = self.schwarzschild_radius()
+
+        # Restrictions
+        if self.a <= 0 or self.a <= self.s_radius:
             raise ValueError(f"Invalid semi-major axis: {self.a} au. It must be positive and " +
-                             f"greater than the Schwarzschild radius ({self.schwarzschild_radius():.2f} au).")
+                             f"greater than the Schwarzschild radius ({self.s_radius:.2f} au).")
         
         # Get initial conditions
         self.s0 = self.initial_conditions()
 
         # Get Schwarzschild components
-        self.s_radius = self.schwarzschild_radius()
         angle = np.linspace(0, 2*np.pi, 100)
         self.s_radius_x = self.s_radius * np.cos(angle)
         self.s_radius_y = self.s_radius * np.sin(angle)
@@ -131,7 +134,7 @@ class OrbitalSystem:
         """
         return 2 * G * self.M / c**2
     
-class CelestialIntegrator(OrbitalSystem):
+class CelestialIntegrator(OrbitBirther):
     """
     Integrator class.
     """
@@ -172,11 +175,10 @@ class CelestialIntegrator(OrbitalSystem):
             # Compute the slopes
             k1 = np.array(slope_func(self.t_eval[i], self.S[i]))
             k2 = np.array(slope_func(self.t_eval[i] + self.dt/2, self.S[i] + self.dt*k1/2))
-            k3 = np.array(slope_func(self.t_eval[i] + self.dt/2, self.S[i] + self.dt*k2/2))
-            k4 = np.array(slope_func(self.t_eval[i] + self.dt, self.S[i] + self.dt*k3))
+            k3 = np.array(slope_func(self.t_eval[i] + self.dt, self.S[i] - self.dt*k1 + 2*self.dt*k2))
 
             # Update the state vector
-            self.S[i + 1] = self.S[i] + self.dt*(k1 + 2*k2 + 2*k3 + k4)/6
+            self.S[i + 1] = self.S[i] + self.dt*(k1 + 4*k2 + k3)/6
 
         return self.t_eval, self.S
 
@@ -301,6 +303,7 @@ class CelestialIntegrator(OrbitalSystem):
             f.attrs['a'] = self.a
             f.attrs['e'] = self.e
             f.attrs['N'] = N
+            f.attrs['method'] = method
 
             f.attrs['schwarzschild_radius'] = self.s_radius
 
@@ -319,13 +322,10 @@ class CelestialIntegrator(OrbitalSystem):
         # Get the indexes
         coeff = np.where(inside)[0]
 
-        # If the orbit is inside, cut the arrays
+        # If the orbit is inside, remove the data
         if coeff.size > 0:
             S_sol = S_sol[:, :coeff[0]]
             t_sol = t_sol[:coeff[0]]
-
-        else:
-            pass
 
         return t_sol, S_sol
 
@@ -350,17 +350,163 @@ class CelestialIntegrator(OrbitalSystem):
         Time for integration.
         """
         # Kepler's third law
-        t = 2 * np.pi * np.sqrt(self.a**3 / (G * self.M))
+        period = 2 * np.pi * np.sqrt(self.a**3 / (G * self.M))
 
-        return N * t 
+        return N * period
+    
+class ChronoPainter:
+    """
+    Plots the evolution over time.
+    """
+    def __init__(self, orbital_history: str):
+        """
+        Constructor.
+        """
+        # Load the data
+        self.orbital_history = orbital_history
+
+        # Check if the file exists
+        if not os.path.exists(self.orbital_history):
+            raise FileNotFoundError(f"The file {self.orbital_history} does not exist.")
+        
+        # Read the data
+        self.summon_history()
+
+        print(f"Data loaded from {self.orbital_history}.")
+
+    def summon_history(self):
+        """
+        Read the data.
+        """
+        # Load and extract
+        with h5py.File(self.orbital_history, 'r') as f:
+
+            # Data
+            self.time = f['time'][:]
+            self.x    = f['x'][:]
+            self.y    = f['y'][:]
+            self.vx   = f['vx'][:]
+            self.vy   = f['vy'][:]
+
+            # Metadata
+            self.M = f.attrs['M']
+            self.a = f.attrs['a']
+            self.e = f.attrs['e']
+            self.N = f.attrs['N']
+            self.method = f.attrs['method']
+            self.s_radius = f.attrs['schwarzschild_radius']
+            self.units = f.attrs['units']
+
+            # Schwarzschild radius components
+            angle = np.linspace(0, 2*np.pi, 100)
+            self.s_radius_x = self.s_radius * np.cos(angle)
+            self.s_radius_y = self.s_radius * np.sin(angle)
+
+        # Reconstruct the solution
+        self.S = np.zeros((4, len(self.time)))
+        self.S[0], self.S[1], self.S[2], self.S[3] = self.x, self.y, self.vx, self.vy
+
+    def sketch(self, frames):
+        """
+        Generate images.
+        """
+        # Create directory
+        if not os.path.exists("outputfolder/images"):
+            os.makedirs("outputfolder/images")
+
+        # Determine the frame indices
+        frame_indices = np.linspace(0, len(self.time)-1, frames, dtype=int)
+
+        # Print
+        print("----------------------------------------------")
+        print(f"Saving {frames} frames...")
+        print("----------------------------------------------")
+
+        # Save images
+        for i, index in enumerate(frame_indices):
+
+            # Get the partial solution
+            S_partial = self.S[:, :index + 1]
+
+            # Plot
+            plot_orbit(
+                S_partial,
+                self.s_radius_x,
+                self.s_radius_y,
+                True, False,
+                "outputfolder/images",
+                f"orbit_{i:03d}.png"
+            )
+
+            # Print progress each 10%
+            if i % (frames // 10) == 0:
+                print(f"Progress: {i / frames:.0%} ({i} images)")
+            
+        # Print
+        print("----------------------------------------------")
+        print(f"All {frames} images saved to outputfolder/images.")
+            
+    def paint(self, frames):
+        """
+        Generate GIF.
+        """
+        # Create directory
+        if not os.path.exists("outputfolder/images"):
+            os.makedirs("outputfolder/images")
+
+        # Print
+        print("----------------------------------------------")
+        print("            STARTING GIF CREATION")
+
+        # Save images
+        self.sketch(frames)
+
+        # Print info
+        print("----------------------------------------------")
+        print(f"Saving GIF...")
+        print("----------------------------------------------")
+
+        # Save gif
+        images = []
+        for i in range(frames):
+            filename = os.path.join("outputfolder/images", f"orbit_{i:03d}.png")
+            images.append(imageio.imread(filename))
+        imageio.mimsave(os.path.join("outputfolder", "orbit-test-2.gif"), images, duration=1.0)
+
+        # Print
+        print(f"GIF saved to outputfolder/orbit-test-2.gif.")
+        print("----------------------------------------------")
+
+        print("            END OF GIF CREATION")
+        print("----------------------------------------------")
+
+        # Delete images
+        self.burn_sketches()
+
+    def burn_sketches(self):
+        """
+        Delete images.
+        """
+        # Remove the images
+        for filename in os.listdir("outputfolder/images"):
+            if filename.endswith(".png"):
+                os.remove(os.path.join("outputfolder/images", filename))
+
+        # Remove the directory
+        os.rmdir("outputfolder/images")
+
+        # Print
+        print("All images have been deleted.")
+        print("----------------------------------------------")
+
 
 # ----------------- Main ----------------
 
 if __name__ == "__main__":
 
-    sys = OrbitalSystem(M=7.83e6, a=1.0, e=0.0167, save_start=True)
+    #integrator = CelestialIntegrator(M=7.83e6, a=1.0, e=0.0167)
+    #t_sol, S_sol = integrator.integrate(N=2, steps=2500, method='SPY', relativistic=True, save=True)
 
-    # integrator = CelestialIntegrator(M=7.83e6, a=1.0, e=0.00167, save_start=True)
-    # t_sol, S_sol = integrator.integrate(N=50, steps=10000, method='SPY', relativistic=True, save=False)
-
-
+    # Painter instance
+    painter = ChronoPainter("outputfolder/M7.8e+06-a1.0-e0.017-relat-SPY.h5")
+    painter.paint(frames=10)
