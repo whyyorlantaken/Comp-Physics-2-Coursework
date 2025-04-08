@@ -134,7 +134,7 @@ class OrbitBirther:
         """
         return 2 * G * self.M / c**2
     
-class CelestialIntegrator(OrbitBirther):
+class CelestialSeer(OrbitBirther):
     """
     Integrator class.
     """
@@ -358,53 +358,73 @@ class ChronoPainter:
     """
     Plots the evolution over time.
     """
-    def __init__(self, orbital_history: str):
+    def __init__(self, 
+                 orbits: tuple = None, 
+                 labels: tuple = None,
+                 colors: tuple = None):
         """
         Constructor.
         """
-        # Load the data
-        self.orbital_history = orbital_history
-
-        # Check if the file exists
-        if not os.path.exists(self.orbital_history):
-            raise FileNotFoundError(f"The file {self.orbital_history} does not exist.")
+        # It has to be a tuple
+        if not isinstance(orbits, tuple):
+            raise TypeError("The orbits parameter must be a tuple.")
         
-        # Read the data
-        self.summon_history()
+        # with strings pointing to the files
+        for orbit in orbits:
+            if not isinstance(orbit, str):
+                raise TypeError("Each element in the orbits tuple must be a string.")
+            if not os.path.exists(orbit):
+                raise FileNotFoundError(f"The file {orbit} does not exist.")
+            
+        # Make them attributes
+        self.orbits = orbits
+        self.labels = labels
+        self.colors = colors
 
-        print(f"Data loaded from {self.orbital_history}.")
+        # Load all
+        self.designate()
 
-    def summon_history(self):
+    def designate(self):
         """
-        Read the data.
+        Load all the orbits data.
+        """
+        # Load all the orbits data
+        for i, orbit in enumerate(self.orbits):
+
+            # Read the data
+            t, S = self.look_back(orbit)
+
+            # Assign different names
+            setattr(self, f't_{i:02d}', t)
+            setattr(self, f'S_{i:02d}', S)
+
+    def look_back(self, orbital_history: str):
+        """
+        Read just the necessary data from the HDF5 file.
         """
         # Load and extract
-        with h5py.File(self.orbital_history, 'r') as f:
+        with h5py.File(orbital_history, 'r') as f:
 
             # Data
-            self.time = f['time'][:]
-            self.x    = f['x'][:]
-            self.y    = f['y'][:]
-            self.vx   = f['vx'][:]
-            self.vy   = f['vy'][:]
+            time = f['time'][:]
+            x    = f['x'][:]
+            y    = f['y'][:]
+            vx   = f['vx'][:]
+            vy   = f['vy'][:]
 
             # Metadata
-            self.M = f.attrs['M']
-            self.a = f.attrs['a']
-            self.e = f.attrs['e']
-            self.N = f.attrs['N']
-            self.method = f.attrs['method']
-            self.s_radius = f.attrs['schwarzschild_radius']
-            self.units = f.attrs['units']
+            s_radius = f.attrs['schwarzschild_radius']
 
-            # Schwarzschild radius components
+            # Schwarzschild radius components (shouldn't change per object)
             angle = np.linspace(0, 2*np.pi, 100)
-            self.s_radius_x = self.s_radius * np.cos(angle)
-            self.s_radius_y = self.s_radius * np.sin(angle)
+            self.s_radius_x = s_radius * np.cos(angle)
+            self.s_radius_y = s_radius * np.sin(angle)
 
         # Reconstruct the solution
-        self.S = np.zeros((4, len(self.time)))
-        self.S[0], self.S[1], self.S[2], self.S[3] = self.x, self.y, self.vx, self.vy
+        S = np.zeros((4, len(time)))
+        S[0], S[1], S[2], S[3] = x, y, vx, vy
+
+        return time, S
 
     def sketch(self, frames):
         """
@@ -415,7 +435,10 @@ class ChronoPainter:
             os.makedirs("outputfolder/images")
 
         # Determine the frame indices
-        frame_indices = np.linspace(0, len(self.time)-1, frames, dtype=int)
+        frame_indices = np.linspace(0, len(self.t_00) - 1, frames, dtype=int)
+
+        # Get the max limit
+        xlim = self.max_lim()
 
         # Print
         print("----------------------------------------------")
@@ -425,18 +448,36 @@ class ChronoPainter:
         # Save images
         for i, index in enumerate(frame_indices):
 
-            # Get the partial solution
-            S_partial = self.S[:, :index + 1]
+            # Frame
+            plt.figure(figsize=(7, 7))
 
-            # Plot
-            plot_orbit(
-                S_partial,
-                self.s_radius_x,
-                self.s_radius_y,
-                True, False,
-                "outputfolder/images",
-                f"orbit_{i:03d}.png"
-            )
+            # Get the partial solutions
+            for j in range(len(self.orbits)):
+                S = getattr(self, f'S_{j:02d}')[:, :index+1]
+                plt.plot(S[0], S[1], lw = 0.4, label = self.labels[j], color = self.colors[j])
+                plt.scatter(S[0][-1], S[1][-1], color='deepskyblue', marker='o',
+                            edgecolors='w', s=50, zorder = 10)
+
+            plt.scatter(0, 0, label='Black hole', color='k', s=150, edgecolor='crimson', lw=1.5)
+            plt.plot(self.s_radius_x, self.s_radius_y, label=r'$r_s$', lw=0.8, color="crimson", alpha=0.4)
+            
+            # Set labels and save
+            if len(self.orbits) == 1:
+                plt.title('Planet orbit around the black hole')
+            else:
+                plt.title('Planet orbits around the black hole')
+
+            plt.xlabel('x [AU]')
+            plt.ylabel('y [AU]')
+            plt.axis('equal')
+            plt.grid(alpha=0.2, ls='-.', lw=0.5)
+            plt.legend(loc=(1.05, 0.42))
+            plt.xlim(-xlim*1.2, xlim*1.2)
+            plt.ylim(-xlim*1.2, xlim*1.2)
+        
+            # Save the frame
+            plt.savefig(os.path.join("outputfolder/images", f"orbit_{i:03d}.png"), dpi=150, bbox_inches='tight')
+            plt.close()
 
             # Print progress each 10%
             if i % (frames // 10) == 0:
@@ -445,6 +486,29 @@ class ChronoPainter:
         # Print
         print("----------------------------------------------")
         print(f"All {frames} images saved to outputfolder/images.")
+
+    def max_lim(self):
+        """
+        Determine the max limit.
+        """
+        # Empty list
+        list_max = []
+
+        # Loop through the orbits
+        for i in range(len(self.orbits)):
+
+            # Get the solution
+            S = getattr(self, f'S_{i:02d}')
+
+            # and its maximum value
+            max_x = np.max(np.abs(S[0]))
+            max_y = np.max(np.abs(S[1]))
+            maximum = np.max([max_x, max_y])
+
+            # Append to the list
+            list_max.append(maximum)
+
+        return np.max(np.array(list_max))
             
     def paint(self, frames):
         """
@@ -471,10 +535,10 @@ class ChronoPainter:
         for i in range(frames):
             filename = os.path.join("outputfolder/images", f"orbit_{i:03d}.png")
             images.append(imageio.imread(filename))
-        imageio.mimsave(os.path.join("outputfolder", "orbit-test-2.gif"), images, duration=1.0)
+        imageio.mimsave(os.path.join("outputfolder", "orbit-test-4.gif"), images, duration=1.0)
 
         # Print
-        print(f"GIF saved to outputfolder/orbit-test-2.gif.")
+        print(f"GIF saved to outputfolder/orbit-test-4.gif.")
         print("----------------------------------------------")
 
         print("            END OF GIF CREATION")
@@ -504,9 +568,19 @@ class ChronoPainter:
 
 if __name__ == "__main__":
 
-    #integrator = CelestialIntegrator(M=7.83e6, a=1.0, e=0.0167)
-    #t_sol, S_sol = integrator.integrate(N=2, steps=2500, method='SPY', relativistic=True, save=True)
+    integrator = CelestialSeer(M=7.83e6, a=1.0, e=0.0167)
+    t_sol, S_sol = integrator.integrate(N=4, steps=2000, method='SPY', relativistic=True, save=True)
+    t_sol2, S_sol2 = integrator.integrate(N=4, steps=2000, method='SPY', relativistic=False, save=True)
 
     # Painter instance
-    painter = ChronoPainter("outputfolder/M7.8e+06-a1.0-e0.017-relat-SPY.h5")
-    painter.paint(frames=10)
+    file1 = "outputfolder/M7.8e+06-a1.0-e0.017-relat-SPY.h5"
+    file2 = "outputfolder/M7.8e+06-a1.0-e0.017-class-SPY.h5"
+
+    tupla = (file1, file2)
+    colors = ("khaki", "magenta")
+    painter = ChronoPainter(orbits=tupla, labels=("Relativistic", "Classical"),
+                            colors=colors)
+    painter.paint(frames=50)
+
+    # painter = ChronoPainter("outputfolder/M7.8e+06-a1.0-e0.017-relat-SPY.h5")
+    # painter.paint(frames=10)
