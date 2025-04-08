@@ -12,13 +12,19 @@ import matplotlib.pyplot as plt
 plt.style.use('dark_background')
 
 from scipy.integrate import solve_ivp
+from IPython.display import Image as IPImage, display
 
 # ---------------- Constants ----------------
 
 G = 4 * np.pi**2  # AU^3/M_sun * yr^2
 c = 63241.54      # AU/yr
 
-# ----------------- Functions ----------------
+# ---------------- Functions ----------------
+
+# Comment: I was initially planning to use this function
+# to save both the start and the images for the gif, but
+# things got complicated in the animation part, so I did
+# it separately in the end. 
 
 def plot_orbit( S_sol, s_radius_x, s_radius_y, save, show, directory, name):
     """
@@ -99,7 +105,7 @@ class OrbitBirther:
         self.s_radius_x = self.s_radius * np.cos(angle)
         self.s_radius_y = self.s_radius * np.sin(angle)
 
-        # Save them if needed
+        # Save start if requested
         if save_start:
             self.save_start()
 
@@ -231,7 +237,7 @@ class CelestialSeer(OrbitBirther):
         """
         Integrate the system.
         """
-        # Initialize the integrator
+        # Initialize state vector, initial conditions, and time stuff
         self.integrator_initializations(N, steps)
 
         # Slope function
@@ -262,7 +268,7 @@ class CelestialSeer(OrbitBirther):
         # Exclude data inside the Schwarzschild radius
         t_sol, S_sol = self.schwarzschild_restriction(t_sol, S_sol)
 
-        # Save results
+        # Save results if requested
         if save: 
             self.save_solutions(t_sol, S_sol, method, relativistic, N)
 
@@ -307,7 +313,7 @@ class CelestialSeer(OrbitBirther):
 
             f.attrs['schwarzschild_radius'] = self.s_radius
 
-        print(f"Results saved to {filepath}.")
+        print(f"Saved to {filepath}.")
 
     def schwarzschild_restriction(self, 
                                   t_sol: np.ndarray,
@@ -316,13 +322,13 @@ class CelestialSeer(OrbitBirther):
         # Get the distances
         r_sol = np.sqrt(S_sol[0]**2 + S_sol[1]**2)
 
-        # Inside the Schwarzschild radius
+        # Determine which are inside the Schwarzschild radius
         inside = r_sol < self.s_radius
 
         # Get the indexes
         coeff = np.where(inside)[0]
 
-        # If the orbit is inside, remove the data
+        # If it is inside, remove the posterior data
         if coeff.size > 0:
             S_sol = S_sol[:, :coeff[0]]
             t_sol = t_sol[:coeff[0]]
@@ -382,9 +388,9 @@ class ChronoPainter:
         self.colors = colors
 
         # Load all
-        self.designate()
+        self.assign()
 
-    def designate(self):
+    def assign(self) -> None:
         """
         Load all the orbits data.
         """
@@ -392,13 +398,13 @@ class ChronoPainter:
         for i, orbit in enumerate(self.orbits):
 
             # Read the data
-            t, S = self.look_back(orbit)
+            t, S = self.read(orbit)
 
             # Assign different names
             setattr(self, f't_{i:02d}', t)
             setattr(self, f'S_{i:02d}', S)
 
-    def look_back(self, orbital_history: str):
+    def read(self, orbital_history: str) -> tuple:
         """
         Read just the necessary data from the HDF5 file.
         """
@@ -420,13 +426,18 @@ class ChronoPainter:
             self.s_radius_x = s_radius * np.cos(angle)
             self.s_radius_y = s_radius * np.sin(angle)
 
+            # Same with solar mass
+            self.M = f.attrs['M']
+
         # Reconstruct the solution
         S = np.zeros((4, len(time)))
         S[0], S[1], S[2], S[3] = x, y, vx, vy
 
         return time, S
 
-    def sketch(self, frames):
+    def sketch(self, 
+               frames: int = 100,
+               dpi: int = 120) -> None:
         """
         Generate images.
         """
@@ -438,56 +449,79 @@ class ChronoPainter:
         frame_indices = np.linspace(0, len(self.t_00) - 1, frames, dtype=int)
 
         # Get the max limit
-        xlim = self.max_lim()
+        lim = self.max_lim()
 
         # Print
         print("----------------------------------------------")
         print(f"Saving {frames} frames...")
         print("----------------------------------------------")
 
-        # Save images
-        for i, index in enumerate(frame_indices):
+        # Start the loop
+        for f_idx, t_idx in enumerate(frame_indices):
 
-            # Frame
-            plt.figure(figsize=(7, 7))
-
-            # Get the partial solutions
-            for j in range(len(self.orbits)):
-                S = getattr(self, f'S_{j:02d}')[:, :index+1]
-                plt.plot(S[0], S[1], lw = 0.4, label = self.labels[j], color = self.colors[j])
-                plt.scatter(S[0][-1], S[1][-1], color='deepskyblue', marker='o',
-                            edgecolors='w', s=50, zorder = 10)
-
-            plt.scatter(0, 0, label='Black hole', color='k', s=150, edgecolor='crimson', lw=1.5)
-            plt.plot(self.s_radius_x, self.s_radius_y, label=r'$r_s$', lw=0.8, color="crimson", alpha=0.4)
-            
-            # Set labels and save
-            if len(self.orbits) == 1:
-                plt.title('Planet orbit around the black hole')
-            else:
-                plt.title('Planet orbits around the black hole')
-
-            plt.xlabel('x [AU]')
-            plt.ylabel('y [AU]')
-            plt.axis('equal')
-            plt.grid(alpha=0.2, ls='-.', lw=0.5)
-            plt.legend(loc=(1.05, 0.42))
-            plt.xlim(-xlim*1.2, xlim*1.2)
-            plt.ylim(-xlim*1.2, xlim*1.2)
-        
-            # Save the frame
-            plt.savefig(os.path.join("outputfolder/images", f"orbit_{i:03d}.png"), dpi=150, bbox_inches='tight')
-            plt.close()
+            # Draw and save
+            self._save_sketch(
+                frame_idx = f_idx,
+                time_idx  = t_idx, 
+                lim = lim,
+                dpi = dpi
+                )
 
             # Print progress each 10%
-            if i % (frames // 10) == 0:
-                print(f"Progress: {i / frames:.0%} ({i} images)")
+            if f_idx % (frames // 10) == 0:
+                print(f"Progress: {f_idx / frames:.0%} ({f_idx} images)")
             
-        # Print
+        # End
         print("----------------------------------------------")
         print(f"All {frames} images saved to outputfolder/images.")
+        
+    def _save_sketch(self, 
+                    frame_idx, 
+                    time_idx, 
+                    lim,
+                    dpi = 120) -> None:
+        """
+        Draw a single frame of the animation.
+        """
+        # Figure
+        plt.figure(figsize=(7, 7))
 
-    def max_lim(self):
+        # Solutions at the current time
+        for j in range(len(self.orbits)):
+
+            # Get it
+            S = getattr(self, f'S_{j:02d}')[:, :time_idx+1]
+
+            # Plot it
+            plt.plot(S[0], S[1], lw=0.4, 
+                     label = self.labels[j] if self.labels is not None else None, 
+                     color = self.colors[j] if self.colors is not None else None)
+            plt.scatter(S[0][-1], S[1][-1], color = 'deepskyblue', 
+                        marker='o', edgecolors='w', s = 50, zorder = 10)
+
+        # Black hole and Schwarzschild radius
+        plt.scatter(0, 0, label='Black hole', color='k', s=150, edgecolor='crimson', lw=1.5)
+        plt.plot(self.s_radius_x, self.s_radius_y, label=r'$r_s$', lw=0.8, color="crimson", alpha=0.4)
+        
+        # Title and labels
+        if len(self.orbits) == 1:
+            plt.title(f'Planet orbit around the black hole ({self.M:.1e}' + r"$\ M_\odot$)")
+        else:
+            plt.title(f'Planet orbits around the black hole ({self.M:.1e}' + r"$\ M_\odot$)")
+
+        plt.xlabel('x [AU]')
+        plt.ylabel('y [AU]')
+        plt.axis('equal')
+        plt.grid(alpha=0.2, ls='-.', lw=0.5)
+        plt.legend(loc=(1.05, 0.42))
+        plt.xlim(-lim * 1.2, lim * 1.2)
+        plt.ylim(-lim * 1.2, lim * 1.2)
+    
+        # Save it
+        plt.savefig(os.path.join("outputfolder/images", f"orbit_{frame_idx:03d}.png"), dpi=dpi, bbox_inches='tight')
+        plt.close()
+
+    def max_lim(self) -> float:
         """
         Determine the max limit.
         """
@@ -510,7 +544,12 @@ class ChronoPainter:
 
         return np.max(np.array(list_max))
             
-    def paint(self, frames):
+    def paint(self, 
+              gif_name: str = None,
+              frames: int = 100,
+              duration: float = 1.0, 
+              dpi: int = 120,
+              show: bool = False) -> None:
         """
         Generate GIF.
         """
@@ -523,19 +562,26 @@ class ChronoPainter:
         print("            STARTING GIF CREATION")
 
         # Save images
-        self.sketch(frames)
+        self.sketch(frames, dpi)
 
         # Print info
         print("----------------------------------------------")
         print(f"Saving GIF...")
         print("----------------------------------------------")
 
-        # Save gif
+        # Empty list
         images = []
+
+        # Loop through the images
         for i in range(frames):
             filename = os.path.join("outputfolder/images", f"orbit_{i:03d}.png")
             images.append(imageio.imread(filename))
-        imageio.mimsave(os.path.join("outputfolder", "orbit-test-4.gif"), images, duration=1.0)
+
+        # Save the GIF with loop
+        imageio.mimsave(os.path.join("outputfolder", gif_name),
+                        images, 
+                        duration = duration,
+                        loop = 0)
 
         # Print
         print(f"GIF saved to outputfolder/orbit-test-4.gif.")
@@ -547,9 +593,21 @@ class ChronoPainter:
         # Delete images
         self.burn_sketches()
 
-    def burn_sketches(self):
+        # Show the gif only
+        if show:
+            self.show_evolution(gif_name)
+
+    @staticmethod
+    def show_evolution(gif_name) -> None:
         """
-        Delete images.
+        """
+        # Show it
+        img = IPImage(filename = os.path.join("outputfolder", gif_name))
+        display(img)
+
+    def burn_sketches(self) -> None:
+        """
+        Delete all images.
         """
         # Remove the images
         for filename in os.listdir("outputfolder/images"):
@@ -569,8 +627,8 @@ class ChronoPainter:
 if __name__ == "__main__":
 
     integrator = CelestialSeer(M=7.83e6, a=1.0, e=0.0167)
-    t_sol, S_sol = integrator.integrate(N=4, steps=2000, method='SPY', relativistic=True, save=True)
-    t_sol2, S_sol2 = integrator.integrate(N=4, steps=2000, method='SPY', relativistic=False, save=True)
+    t_sol, S_sol = integrator.integrate(N=1, steps=2000, method='SPY', relativistic=True, save=True)
+    t_sol2, S_sol2 = integrator.integrate(N=1, steps=2000, method='SPY', relativistic=False, save=True)
 
     # Painter instance
     file1 = "outputfolder/M7.8e+06-a1.0-e0.017-relat-SPY.h5"
@@ -578,9 +636,8 @@ if __name__ == "__main__":
 
     tupla = (file1, file2)
     colors = ("khaki", "magenta")
-    painter = ChronoPainter(orbits=tupla, labels=("Relativistic", "Classical"),
-                            colors=colors)
-    painter.paint(frames=50)
+    painter = ChronoPainter(orbits=tupla, colors=colors)
+    painter.paint(frames=50, dpi=100, duration=0.1)
 
     # painter = ChronoPainter("outputfolder/M7.8e+06-a1.0-e0.017-relat-SPY.h5")
     # painter.paint(frames=10)
