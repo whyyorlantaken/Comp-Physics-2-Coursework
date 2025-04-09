@@ -349,7 +349,7 @@ class CelestialSeer(OrbitBirther):
 
             f.attrs['schwarzschild_radius'] = self.s_radius
 
-        print(f"Saved to {filepath}.")
+        print(f"Saved to {filepath}")
 
     def schwarzschild_restriction(self, 
                                   t_sol: np.ndarray,
@@ -772,10 +772,11 @@ if __name__ == "__main__":
 
         # Info
         print("=========================================================")
-        print("Running CelestialSeer (integrator class):")
-        print(f"    Mass: {args.M:.1e} M_sun")
-        print(f"    Semi-major axis: {args.a:.1f} AU")
-        print(f"    Eccentricity: {args.e:.3f}")
+        print("")
+        print("Initializing CelestialSeer (integrator class):")
+        print(f"    Black hole mass:        {args.M:.1e} [M_sun]")
+        print(f"    Semi-major axis (a):    {args.a:.1f} [AU]")
+        print(f"    Eccentricity (e):       {args.e:.3f}")
         print("")
 
         # Create the integrator
@@ -788,11 +789,11 @@ if __name__ == "__main__":
 
         # Integrate
         print(f"    Integrating equations of motion:")
-        print(f"        N: {args.N}")
-        print(f"        Method: {args.method}")
-        print(f"        Steps: {args.steps}")
-        print(f"        Relativistic: {args.relativistic}")
-        print(f"        Save HDF5: {args.save_hdf5}")
+        print(f"        Periods (N):        {args.N}")
+        print(f"        Method:             {args.method}")
+        print(f"        Steps:              {args.steps}")
+        print(f"        Relativistic:       {args.relativistic}")
+        print(f"        Save HDF5:          {args.save_hdf5}")
         print("")
 
         # Call the integrator
@@ -805,6 +806,9 @@ if __name__ == "__main__":
             gif_name = args.gif_name,
             frames = args.frames
         )
+        print("")
+        print(f"DONE. Simulated orbit up to {t_sol[-1]:.1e} yr.")
+        print("")   
         print("==========================================================")
 
     # Animation class
