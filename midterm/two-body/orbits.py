@@ -793,6 +793,7 @@ if __name__ == "__main__":
         print(f"        Steps: {args.steps}")
         print(f"        Relativistic: {args.relativistic}")
         print(f"        Save HDF5: {args.save_hdf5}")
+        print("")
 
         # Call the integrator
         t_sol, S_sol, _ = integrator.integrate(
