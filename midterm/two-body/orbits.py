@@ -7,6 +7,8 @@ import h5py
 
 import numpy as np
 
+import argparse
+
 import imageio.v2 as imageio
 import matplotlib.pyplot as plt
 plt.style.use('dark_background')
@@ -20,6 +22,8 @@ G = 4 * np.pi**2  # AU^3/M_sun * yr^2
 c = 63241.54      # AU/yr
 
 # ---------------- Functions ----------------
+
+
 
 # Comment: I was initially planning to use this function
 # to save both the start and the images for the gif, but
@@ -233,15 +237,23 @@ class CelestialSeer(OrbitBirther):
                   steps: int = 10000,
                   method: str = 'RK3',
                   relativistic: bool = False,
-                  save: bool = False):
+                  save_hdf5: bool = False,
+                  gif_name: str = None,
+                  frames: int = 50):
         """
         Integrate the system.
         """
         # Initialize state vector, initial conditions, and time stuff
         self.integrator_initializations(N, steps)
 
-        # Slope function
+        # Determine slope function
         slope_func = self.relativistic_slope if relativistic else self.classical_slope
+
+        # For naming stuff later
+        self.relativistic = relativistic
+        self.method = method
+        ode_type = "relat" if relativistic else "class"
+        self.filename = f"M{self.M:.1e}-a{self.a:.1f}-e{self.e:.3f}-{ode_type}-{method}.h5"
         
         # Integrate
         if method == 'RK3':
@@ -269,10 +281,36 @@ class CelestialSeer(OrbitBirther):
         t_sol, S_sol = self.schwarzschild_restriction(t_sol, S_sol)
 
         # Save results if requested
-        if save: 
+        if save_hdf5:
             self.save_solutions(t_sol, S_sol, method, relativistic, N)
 
-        return t_sol, S_sol
+            # and show gif
+            if gif_name is not None:
+                self.gif(gif_name, frames)
+
+        return t_sol, S_sol, "outputfolder/" + self.filename
+
+    def gif(self, 
+            gif_name: str, 
+            frames: int = 100):
+        """
+        Create a GIF from the images.
+        """
+        # Initialize the painter
+        painter = ChronoPainter(
+                    orbits = ("outputfolder/" + self.filename,),
+                    labels = (f"Rel: {self.relativistic}, method: {self.method}",), 
+                    colors = ('deepskyblue',)
+                )
+        
+        # Create the GIF
+        painter.paint(
+            gif_name = gif_name,
+            frames   = frames,
+            duration = 1.0,
+            dpi      = 120,
+            show     = False
+        )
 
     def save_solutions(self, 
                        t_sol: np.ndarray,
@@ -287,10 +325,8 @@ class CelestialSeer(OrbitBirther):
         if not os.path.exists("outputfolder"):
             os.makedirs("outputfolder")
         
-        # Descriptive filename
-        ode_type = "relat" if relativistic else "class"
-        filename = f"M{self.M:.1e}-a{self.a:.1f}-e{self.e:.3f}-{ode_type}-{method}.h5"
-        filepath = os.path.join("outputfolder", filename)
+        # Filename
+        filepath = os.path.join("outputfolder", self.filename)
         
         # Save
         with h5py.File(filepath, 'w') as f:
@@ -452,9 +488,9 @@ class ChronoPainter:
         lim = self.max_lim()
 
         # Print
-        print("----------------------------------------------")
+        print("----------------------------------------------------------")
         print(f"Saving {frames} frames...")
-        print("----------------------------------------------")
+        print("----------------------------------------------------------")
 
         # Start the loop
         for f_idx, t_idx in enumerate(frame_indices):
@@ -467,12 +503,12 @@ class ChronoPainter:
                 dpi = dpi
                 )
 
-            # Print progress each 10%
+            # Print progress
             if f_idx % (frames // 10) == 0:
                 print(f"Progress: {f_idx / frames:.0%} ({f_idx} images)")
             
         # End
-        print("----------------------------------------------")
+        print("----------------------------------------------------------")
         print(f"All {frames} images saved to outputfolder/images.")
         
     def _save_sketch(self, 
@@ -558,16 +594,16 @@ class ChronoPainter:
             os.makedirs("outputfolder/images")
 
         # Print
-        print("----------------------------------------------")
-        print("            STARTING GIF CREATION")
+        print("----------------------------------------------------------")
+        print("                  STARTING GIF CREATION")
 
         # Save images
         self.sketch(frames, dpi)
 
         # Print info
-        print("----------------------------------------------")
+        print("----------------------------------------------------------")
         print(f"Saving GIF...")
-        print("----------------------------------------------")
+        print("----------------------------------------------------------")
 
         # Empty list
         images = []
@@ -584,14 +620,14 @@ class ChronoPainter:
                         loop = 0)
 
         # Print
-        print(f"GIF saved to outputfolder/orbit-test-4.gif.")
-        print("----------------------------------------------")
-
-        print("            END OF GIF CREATION")
-        print("----------------------------------------------")
+        print(f"GIF saved to outputfolder/{gif_name}.")
+        print("----------------------------------------------------------")
 
         # Delete images
         self.burn_sketches()
+
+        print("                   END OF GIF CREATION")
+        print("----------------------------------------------------------")
 
         # Show the gif only
         if show:
@@ -619,25 +655,190 @@ class ChronoPainter:
 
         # Print
         print("All images have been deleted.")
-        print("----------------------------------------------")
+        print("----------------------------------------------------------")
+
+def parse_args():
+    """
+    Parse command line arguments.
+    """
+    # Initialize the parser
+    parser = argparse.ArgumentParser(description = 'Orbit around a black hole simulation.')
+
+    # and subparsers
+    subparsers = parser.add_subparsers(dest = 'command', help = 'Command to run')
+    
+    # =========================== CelestialSeer ===========================
+    seer_parser = subparsers.add_parser(
+        'CelestialSeer', help = 'Run orbit simulation'
+        )
+
+    # Arguments
+    seer_parser.add_argument(
+        '--M', type = float, default = 5e6,
+        help = 'Mass of the black hole in solar masses.'
+        )
+    seer_parser.add_argument(
+        '--a', type = float, default = 1.0, 
+        help = 'Semi-major axis in AU.'
+        )
+    seer_parser.add_argument(
+        '--e', type = float, default = 0.0167,
+        help = 'Eccentricity of the orbit.'
+        )
+    seer_parser.add_argument(
+        '--N', type = float, default = 2.0,
+        help = 'Number of periods to simulate.'
+        )
+    seer_parser.add_argument(
+        '--steps', type = int, default = 2000,
+        help = 'Number of steps for integration.'
+        )
+    seer_parser.add_argument(
+        '--method', type = str, choices = ['RK3', 'TPZ', 'SPY'], default = 'RK3',
+        help = 'Integration method.'
+        )
+    seer_parser.add_argument(
+        '--relativistic', type = bool, choices = [True, False], default = True,
+        help = 'Use relativistic equations of motion.'
+        )
+    seer_parser.add_argument(
+        '--save_start', action = 'store_true',
+        help = 'Save plot of initial conditions.'
+        )
+    seer_parser.add_argument(
+        '--save_hdf5', action = 'store_true',
+        help = 'Save simulation results to HDF5 file.'
+        )
+    seer_parser.add_argument(
+        '--gif_name', type = str, default = None,
+        help = 'Name of the GIF file.'
+        )
+    seer_parser.add_argument(
+        '--frames', type = int, default = 100,
+        help = 'Number of frames for the GIF.'
+        )
+
+    # =========================== ChronoPainter ===========================
+    painter_parser = subparsers.add_parser(
+        'ChronoPainter', help = 'Create gif from orbit data'
+        )
+
+    # Arguments
+    painter_parser.add_argument(
+        '--orbits', nargs = '+', required = True,
+        help = 'HDF5 files with orbit data.'
+        )
+    painter_parser.add_argument(
+        '--labels', nargs = '+',
+        help = 'Labels for each orbit.'
+        )
+    painter_parser.add_argument(
+        '--colors', nargs = '+',
+        help = 'Colors for each orbit.'
+        )
+    painter_parser.add_argument(
+        '--gif_name', type = str, default = 'orbit.gif',
+        help = 'Name of the GIF file.'
+        )
+    painter_parser.add_argument(
+        '--frames', type = int, default = 100,
+        help = 'Number of frames for the GIF.'
+        )
+    painter_parser.add_argument(
+        '--duration', type = float, default = 0.1,
+        help = 'Duration between frames in GIF.'
+        )
+    painter_parser.add_argument(
+        '--dpi', type = int, default = 100,
+        help = 'DPI for images.'
+        )
+    painter_parser.add_argument(
+        '--show_gif', action = 'store_true',
+        help = 'Show the GIF after creation.'
+        )
+    
+    return parser.parse_args()
 
 
 # ----------------- Main ----------------
 
 if __name__ == "__main__":
 
-    integrator = CelestialSeer(M=7.83e6, a=1.0, e=0.0167)
-    t_sol, S_sol = integrator.integrate(N=1, steps=2000, method='SPY', relativistic=True, save=True)
-    t_sol2, S_sol2 = integrator.integrate(N=1, steps=2000, method='SPY', relativistic=False, save=True)
+    # Initialize the parser
+    args = parse_args()
 
-    # Painter instance
-    file1 = "outputfolder/M7.8e+06-a1.0-e0.017-relat-SPY.h5"
-    file2 = "outputfolder/M7.8e+06-a1.0-e0.017-class-SPY.h5"
+    # Integrator class
+    if args.command == 'CelestialSeer':
 
-    tupla = (file1, file2)
-    colors = ("khaki", "magenta")
-    painter = ChronoPainter(orbits=tupla, colors=colors)
-    painter.paint(frames=50, dpi=100, duration=0.1)
+        # Info
+        print("=========================================================")
+        print("Running CelestialSeer (integrator class):")
+        print(f"    Mass: {args.M:.1e} M_sun")
+        print(f"    Semi-major axis: {args.a:.1f} AU")
+        print(f"    Eccentricity: {args.e:.3f}")
+        print("")
 
-    # painter = ChronoPainter("outputfolder/M7.8e+06-a1.0-e0.017-relat-SPY.h5")
-    # painter.paint(frames=10)
+        # Create the integrator
+        integrator = CelestialSeer(
+            M = args.M, 
+            a = args.a, 
+            e = args.e,
+            save_start = args.save_start
+        )
+
+        # Integrate
+        print(f"    Integrating equations of motion:")
+        print(f"        N: {args.N}")
+        print(f"        Method: {args.method}")
+        print(f"        Steps: {args.steps}")
+        print(f"        Relativistic: {args.relativistic}")
+        print(f"        Save HDF5: {args.save_hdf5}")
+
+        # Call the integrator
+        t_sol, S_sol, _ = integrator.integrate(
+            N = args.N,
+            steps = args.steps,
+            method = args.method,
+            relativistic = args.relativistic,
+            save_hdf5 = args.save_hdf5,
+            gif_name = args.gif_name,
+            frames = args.frames
+        )
+        print("==========================================================")
+
+    # Animation class
+    elif args.command == 'ChronoPainter':
+        
+        # Info
+        print("=========================================================")
+        print("Running ChronoPainter (animation class):")
+        print(f"    Orbits: {', '.join(args.orbits)}")
+        print(f"    Labels: {', '.join(args.labels) if args.labels else 'None'}")
+        print(f"    Colors: {', '.join(args.colors) if args.colors else 'None'}")
+        print("")
+        
+        # Create the painter
+        painter = ChronoPainter(
+            orbits = tuple(args.orbits),
+            labels = tuple(args.labels) if args.labels is not None else None,
+            colors = tuple(args.colors) if args.colors is not None else None
+        )
+
+        # Animation
+        print(f"    Creating animation:")
+        print(f"        GIF name: {args.gif_name}")
+        print(f"        Frames: {args.frames}")
+        print(f"        Duration: {args.duration}")
+        print(f"        DPI: {args.dpi}")
+        print(f"        Show GIF: {args.show_gif}")
+        
+        # Call the painter
+        painter.paint(
+            gif_name = args.gif_name,
+            frames   = args.frames,
+            duration = args.duration,
+            dpi      = args.dpi,
+            show     = args.show_gif
+        )
+
+        print("==========================================================")
