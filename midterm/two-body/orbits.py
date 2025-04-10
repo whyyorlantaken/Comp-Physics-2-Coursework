@@ -11,7 +11,6 @@ import argparse
 
 import imageio.v2 as imageio
 import matplotlib.pyplot as plt
-plt.style.use('dark_background')
 
 from scipy.integrate import solve_ivp
 from IPython.display import Image as IPImage, display
@@ -35,44 +34,45 @@ def plot_orbit( S_sol, s_radius_x, s_radius_y, save, show, directory, name):
     Plot the orbit.
     """
     # Figure
-    plt.figure(figsize=(7, 7))
+    with plt.style.context('dark_background'):
+        plt.figure(figsize=(7, 7))
 
-    # Plots
-    if S_sol[0].size == 1:
-        plt.scatter(S_sol[0], S_sol[1], label='Start', color='deepskyblue', marker='o', s=20)
-    else:
-        plt.plot(S_sol[0], S_sol[1], label='Orbit', color='magenta', lw=0.4)
-        plt.scatter(S_sol[0][-1], S_sol[1][-1], label='Planet', color='deepskyblue',
-                    marker='o', edgecolors='white', s=50, zorder = 10)
+        # Plots
+        if S_sol[0].size == 1:
+            plt.scatter(S_sol[0], S_sol[1], label='Start', color='deepskyblue', marker='o', s=20)
+        else:
+            plt.plot(S_sol[0], S_sol[1], label='Orbit', color='magenta', lw=0.4)
+            plt.scatter(S_sol[0][-1], S_sol[1][-1], label='Planet', color='deepskyblue',
+                        marker='o', edgecolors='white', s=50, zorder = 10)
+            
         
-    
-    plt.scatter(0, 0, label='Black hole', marker='o', color='k', s=150, edgecolor='crimson',
-                lw = 1.5)
-    plt.plot(s_radius_x, s_radius_y, label=r'$r_s$', lw = 0.8, color = "crimson", alpha=0.4)
-    
-    # Labels and title
-    plt.xlabel('x [AU]')
-    plt.ylabel('y [AU]')
-    plt.title('Planet orbit around the black hole')
-    plt.legend(loc=(1.05, 0.42))
-    
-    plt.axis('equal')
-    plt.grid(alpha=0.2, ls ='-.', lw = 0.5)
+        plt.scatter(0, 0, label='Black hole', marker='o', color='k', s=150, edgecolor='crimson',
+                    lw = 1.5)
+        plt.plot(s_radius_x, s_radius_y, label=r'$r_s$', lw = 0.8, color = "crimson", alpha=0.4)
+        
+        # Labels and title
+        plt.xlabel('x [AU]')
+        plt.ylabel('y [AU]')
+        plt.title('Planet orbit around the black hole')
+        plt.legend(loc=(1.05, 0.42))
+        
+        plt.axis('equal')
+        plt.grid(alpha=0.2, ls ='-.', lw = 0.5)
 
-    max_x = np.max(np.abs(S_sol[0]))
-    max_y = np.max(np.abs(S_sol[1]))
-    maximum = np.max([max_x, max_y])
+        max_x = np.max(np.abs(S_sol[0]))
+        max_y = np.max(np.abs(S_sol[1]))
+        maximum = np.max([max_x, max_y])
 
-    plt.xlim(-maximum*1.2, maximum*1.2)
-    plt.ylim(-maximum*1.2, maximum*1.2)
+        plt.xlim(-maximum*1.2, maximum*1.2)
+        plt.ylim(-maximum*1.2, maximum*1.2)
 
-    if save:
-        plt.savefig(os.path.join(directory, name), dpi=150, bbox_inches='tight')
-    
-    if show:
-        plt.show()
+        if save:
+            plt.savefig(os.path.join(directory, name), dpi=150, bbox_inches='tight')
+        
+        if show:
+            plt.show()
 
-    plt.close()
+        plt.close()
 
 # ----------------- Classes ----------------
 
@@ -96,13 +96,29 @@ class OrbitBirther:
         # Schwarzschild radius
         self.s_radius = self.schwarzschild_radius()
 
-        # Restrictions
-        if self.a <= 0 or self.a <= self.s_radius:
-            raise ValueError(f"Invalid semi-major axis: {self.a} au. It must be positive and " +
+        # ------------------- Validations -------------------
+
+        # Mass check
+        if not isinstance(self.M, (int, float)) or self.M <= 0:
+            raise ValueError(f"Invalid mass: {self.M} M_sun. It must be a positive number.")
+
+        # Semi-major axis check
+        if not isinstance(self.a, (int, float)) or self.a <= 0 or self.a <= self.s_radius:
+            raise ValueError(f"Invalid semi-major axis: {self.a} au. It must be a positive number and " +
                              f"greater than the Schwarzschild radius ({self.s_radius:.2f} au).")
+        
+        # Eccentricity check
+        if not isinstance(self.e, (int, float)) or self.e < 0 or self.e >= 1:
+            raise ValueError(f"Invalid eccentricity: {self.e}. It must be a number in the range [0, 1).")
+        
+        # Last check
+        if not isinstance(save_start, bool):
+            raise TypeError("The save_start parameter must be a boolean.")
         
         # Get initial conditions
         self.s0 = self.initial_conditions()
+
+        # ------------------- Other stuff -------------------
 
         # Get Schwarzschild components
         angle = np.linspace(0, 2*np.pi, 100)
@@ -236,7 +252,7 @@ class CelestialSeer(OrbitBirther):
                   N: float = 2.0,
                   steps: int = 10000,
                   method: str = 'RK3',
-                  relativistic: bool = False,
+                  relativistic: bool = None,
                   save_hdf5: bool = False,
                   gif_name: str = None,
                   frames: int = 50):
@@ -478,8 +494,8 @@ class ChronoPainter:
         Generate images.
         """
         # Create directory
-        if not os.path.exists("outputfolder/images"):
-            os.makedirs("outputfolder/images")
+        if not os.path.exists("outputfolder/frames"):
+            os.makedirs("outputfolder/frames")
 
         # Determine the frame indices
         frame_indices = np.linspace(0, len(self.t_00) - 1, frames, dtype=int)
@@ -509,7 +525,7 @@ class ChronoPainter:
             
         # End
         print("----------------------------------------------------------")
-        print(f"All {frames} images saved to outputfolder/images.")
+        print(f"All {frames} frames saved to outputfolder/frames.")
         
     def _save_sketch(self, 
                     frame_idx, 
@@ -519,43 +535,46 @@ class ChronoPainter:
         """
         Draw a single frame of the animation.
         """
-        # Figure
-        plt.figure(figsize=(7, 7))
+        # Dark background
+        with plt.style.context('dark_background'):
 
-        # Solutions at the current time
-        for j in range(len(self.orbits)):
+            # Figure
+            plt.figure(figsize=(7, 7))
 
-            # Get it
-            S = getattr(self, f'S_{j:02d}')[:, :time_idx+1]
+            # Solutions at the current time
+            for j in range(len(self.orbits)):
 
-            # Plot it
-            plt.plot(S[0], S[1], lw=0.4, 
-                     label = self.labels[j] if self.labels is not None else None, 
-                     color = self.colors[j] if self.colors is not None else None)
-            plt.scatter(S[0][-1], S[1][-1], color = 'deepskyblue', 
-                        marker='o', edgecolors='w', s = 50, zorder = 10)
+                # Get it
+                S = getattr(self, f'S_{j:02d}')[:, :time_idx+1]
 
-        # Black hole and Schwarzschild radius
-        plt.scatter(0, 0, label='Black hole', color='k', s=150, edgecolor='crimson', lw=1.5)
-        plt.plot(self.s_radius_x, self.s_radius_y, label=r'$r_s$', lw=0.8, color="crimson", alpha=0.4)
+                # Plot it
+                plt.plot(S[0], S[1], lw=0.4, 
+                        label = self.labels[j] if self.labels is not None else None, 
+                        color = self.colors[j] if self.colors is not None else None)
+                plt.scatter(S[0][-1], S[1][-1], color = 'deepskyblue', 
+                            marker='o', edgecolors='w', s = 50, zorder = 10)
+
+            # Black hole and Schwarzschild radius
+            plt.scatter(0, 0, label='Black hole', color='k', s=150, edgecolor='crimson', lw=1.5)
+            plt.plot(self.s_radius_x, self.s_radius_y, label=r'$r_s$', lw=0.8, color="crimson", alpha=0.4)
+            
+            # Title and labels
+            if len(self.orbits) == 1:
+                plt.title(f'Planet orbit around the black hole ({self.M:.1e}' + r"$\ M_\odot$)")
+            else:
+                plt.title(f'Planet orbits around the black hole ({self.M:.1e}' + r"$\ M_\odot$)")
+
+            plt.xlabel('x [AU]')
+            plt.ylabel('y [AU]')
+            plt.axis('equal')
+            plt.grid(alpha=0.2, ls='-.', lw=0.5)
+            plt.legend(loc=(1.05, 0.42))
+            plt.xlim(-lim * 1.2, lim * 1.2)
+            plt.ylim(-lim * 1.2, lim * 1.2)
         
-        # Title and labels
-        if len(self.orbits) == 1:
-            plt.title(f'Planet orbit around the black hole ({self.M:.1e}' + r"$\ M_\odot$)")
-        else:
-            plt.title(f'Planet orbits around the black hole ({self.M:.1e}' + r"$\ M_\odot$)")
-
-        plt.xlabel('x [AU]')
-        plt.ylabel('y [AU]')
-        plt.axis('equal')
-        plt.grid(alpha=0.2, ls='-.', lw=0.5)
-        plt.legend(loc=(1.05, 0.42))
-        plt.xlim(-lim * 1.2, lim * 1.2)
-        plt.ylim(-lim * 1.2, lim * 1.2)
-    
-        # Save it
-        plt.savefig(os.path.join("outputfolder/images", f"orbit_{frame_idx:03d}.png"), dpi=dpi, bbox_inches='tight')
-        plt.close()
+            # Save it
+            plt.savefig(os.path.join("outputfolder/images", f"orbit_{frame_idx:03d}.png"), dpi=dpi, bbox_inches='tight')
+            plt.close() 
 
     def max_lim(self) -> float:
         """
@@ -602,7 +621,7 @@ class ChronoPainter:
 
         # Print info
         print("----------------------------------------------------------")
-        print(f"Saving GIF...")
+        print(f"Making GIF...")
         print("----------------------------------------------------------")
 
         # Empty list
@@ -654,7 +673,7 @@ class ChronoPainter:
         os.rmdir("outputfolder/images")
 
         # Print
-        print("All images have been deleted.")
+        print("All frames have been deleted.")
         print("----------------------------------------------------------")
 
 def parse_args():
@@ -698,7 +717,7 @@ def parse_args():
         help = 'Integration method.'
         )
     seer_parser.add_argument(
-        '--relativistic', type = bool, choices = [True, False], default = True,
+        '--relativistic', action = 'store_true',
         help = 'Use relativistic equations of motion.'
         )
     seer_parser.add_argument(
@@ -741,7 +760,7 @@ def parse_args():
         help = 'Name of the GIF file.'
         )
     painter_parser.add_argument(
-        '--frames', type = int, default = 100,
+        '--frames', type = int, default = 10,
         help = 'Number of frames for the GIF.'
         )
     painter_parser.add_argument(
@@ -751,10 +770,6 @@ def parse_args():
     painter_parser.add_argument(
         '--dpi', type = int, default = 100,
         help = 'DPI for images.'
-        )
-    painter_parser.add_argument(
-        '--show_gif', action = 'store_true',
-        help = 'Show the GIF after creation.'
         )
     
     return parser.parse_args()
@@ -807,7 +822,7 @@ if __name__ == "__main__":
             frames = args.frames
         )
         print("")
-        print(f"DONE. Simulated orbit up to {t_sol[-1]:.1e} yr.")
+        print(f"DONE. Final time on planet: {t_sol[-1]:.1e} yr.")
         print("")   
         print("==========================================================")
 
@@ -816,8 +831,11 @@ if __name__ == "__main__":
         
         # Info
         print("=========================================================")
-        print("Running ChronoPainter (animation class):")
-        print(f"    Orbits: {', '.join(args.orbits)}")
+        print("")
+        print("Initializing ChronoPainter (animation class):")
+        print(f"    Orbits: ")
+        for orbit in args.orbits:
+            print(f"        {orbit}")
         print(f"    Labels: {', '.join(args.labels) if args.labels else 'None'}")
         print(f"    Colors: {', '.join(args.colors) if args.colors else 'None'}")
         print("")
@@ -831,19 +849,21 @@ if __name__ == "__main__":
 
         # Animation
         print(f"    Creating animation:")
-        print(f"        GIF name: {args.gif_name}")
-        print(f"        Frames: {args.frames}")
-        print(f"        Duration: {args.duration}")
-        print(f"        DPI: {args.dpi}")
-        print(f"        Show GIF: {args.show_gif}")
+        print(f"        GIF name:   {args.gif_name}")
+        print(f"        Duration:   {args.duration}")
+        print(f"        Frames:     {args.frames}")
+        print(f"        DPI:        {args.dpi}")
+        print("")
         
         # Call the painter
         painter.paint(
             gif_name = args.gif_name,
             frames   = args.frames,
             duration = args.duration,
-            dpi      = args.dpi,
-            show     = args.show_gif
+            dpi      = args.dpi
         )
-
+        
+        print("")
+        print("DONE. Animation created successfully.")
+        print("")
         print("==========================================================")
