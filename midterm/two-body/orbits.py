@@ -6,6 +6,8 @@
 
 Author: MAY
 Date: April 2025
+
+Note: The name stands for "black ink" in Latin.
 """
 # Libraries
 import os
@@ -593,22 +595,35 @@ class ChronoPainter:
               dpi: int = 120,
               show: bool = False) -> None:
         """
-        Create a GIF from images of the 
+        It creates a GIF from the orbits data.
+
+        Parameters
+        ----------
+        gif_name : str
+            Name of the GIF file.
+        frames : int
+            Number of frames.
+        duration : float
+            Duration of the GIF.
+        dpi : int
+            DPI for the frames.
+        show : bool
+            If True, show the GIF in a notebook.
         """
-        # Create directory
-        if not os.path.exists("outputfolder/images"):
-            os.makedirs("outputfolder/images")
+        # Create directory for the frames
+        if not os.path.exists("outputfolder/sketches"):
+            os.makedirs("outputfolder/sketches")
 
         # Print
         print("----------------------------------------------------------")
         print("                  STARTING GIF CREATION")
 
-        # Save images
-        self.sketch(frames, dpi)
+        # Save frames
+        self._sketch(frames, dpi)
 
         # Print info
         print("----------------------------------------------------------")
-        print(f"Making GIF...")
+        print(f"Assembling the GIF...")
         print("----------------------------------------------------------")
 
         # Empty list
@@ -616,7 +631,7 @@ class ChronoPainter:
 
         # Loop through the images
         for i in range(frames):
-            filename = os.path.join("outputfolder/images", f"orbit_{i:03d}.png")
+            filename = os.path.join("outputfolder/sketches", f"orbit_{i:03d}.png")
             images.append(imageio.imread(filename))
 
         # Save the GIF with loop
@@ -630,12 +645,12 @@ class ChronoPainter:
         print("----------------------------------------------------------")
 
         # Delete images
-        self.burn_sketches()
+        self._burn_sketches()
 
         print("                   END OF GIF CREATION")
         print("----------------------------------------------------------")
 
-        # Show the gif only
+        # Show the gif if desired
         if show:
             self.show_evolution(gif_name)
 
@@ -823,7 +838,7 @@ class ChronoPainter:
         
             # Save it
             plt.savefig(os.path.join(
-                "outputfolder/images",
+                "outputfolder/sketches",
                 f"orbit_{frame_idx:03d}.png"),
                 dpi = dpi, 
                 bbox_inches = 'tight'
@@ -836,12 +851,12 @@ class ChronoPainter:
         since they're no longer needed.
         """
         # Remove all pngs in the folder
-        for filename in os.listdir("outputfolder/images"):
+        for filename in os.listdir("outputfolder/sketches"):
             if filename.endswith(".png"):
-                os.remove(os.path.join("outputfolder/images", filename))
+                os.remove(os.path.join("outputfolder/sketches", filename))
 
         # Also the directory
-        os.rmdir("outputfolder/images")
+        os.rmdir("outputfolder/sketches")
 
         # Print
         print("All frames have been deleted.")
@@ -886,40 +901,70 @@ class ChronoPainter:
 # things got complicated in the animation part, so I did
 # it separately in the end. 
 
-def plot_orbit( S_sol, s_radius_x, s_radius_y, save, show, directory, name):
+def plot_orbit(S_sol: np.ndarray,
+               s_radius_x: np.ndarray, 
+               s_radius_y: np.ndarray,
+               save: bool = False,
+               show: bool = False,
+               directory: str = "outputfolder",
+               name: str = None) -> None:
     """
-    Plot the orbit.
+    To plot the orbit of a planet around a black hole.
+
+    Parameters
+    ----------
+    S_sol : np.ndarray
+        State vector of the planet [x, y, vx, vy].
+    s_radius_x, s_radius_y : np.ndarray
+        Schwarzschild radius components.
+    save : bool
+        If True, save the plot.
+    show : bool
+        If True, show the plot.
+    directory : str
+        Directory to save the plot.
+    name : str
+        Name of the file to save.
     """
-    # Figure
+    # Dark background
     with plt.style.context('dark_background'):
+
+        # Figure
         plt.figure(figsize=(7, 7))
 
         # Plots
         if S_sol[0].size == 1:
-            plt.scatter(S_sol[0], S_sol[1], label='Start', color='deepskyblue', marker='o', s=20)
+            plt.scatter(S_sol[0], S_sol[1],
+                        label = 'Start', color = 'deepskyblue', 
+                        marker = 'o', s = 20)
         else:
-            plt.plot(S_sol[0], S_sol[1], label='Orbit', color='magenta', lw=0.4)
-            plt.scatter(S_sol[0][-1], S_sol[1][-1], label='Planet', color='deepskyblue',
-                        marker='o', edgecolors='white', s=50, zorder = 10)
+            plt.plot(S_sol[0], S_sol[1], 
+                     label = 'Orbit', color = 'magenta', lw = 0.4)
+            plt.scatter(S_sol[0][-1], S_sol[1][-1],
+                        label = 'Planet', color = 'deepskyblue',
+                        marker = 'o', edgecolors = 'white', 
+                        s = 50, zorder = 10)
             
-        
-        plt.scatter(0, 0, label='Black hole', marker='o', color='k', s=150, edgecolor='crimson',
-                    lw = 1.5)
-        plt.plot(s_radius_x, s_radius_y, label=r'$r_s$', lw = 0.8, color = "crimson", alpha=0.4)
+        # Black hole
+        plt.scatter(0, 0, label = 'Black hole', 
+                    marker = 'o', color = 'k', 
+                    s = 150, edgecolor = 'crimson', lw = 1.5)
+        plt.plot(s_radius_x, s_radius_y, 
+                 label=r'$r_s$', lw = 0.8, 
+                 color = "crimson", alpha = 0.4)
         
         # Labels and title
         plt.xlabel('x [AU]')
         plt.ylabel('y [AU]')
         plt.title('Planet orbit around the black hole')
-        plt.legend(loc=(1.05, 0.42))
-        
+        plt.legend(loc = (1.05, 0.42))
         plt.axis('equal')
-        plt.grid(alpha=0.2, ls ='-.', lw = 0.5)
+        plt.grid(alpha = 0.2, ls ='-.', lw = 0.5)
 
+        # Set limits
         max_x = np.max(np.abs(S_sol[0]))
         max_y = np.max(np.abs(S_sol[1]))
         maximum = np.max([max_x, max_y])
-
         plt.xlim(-maximum*1.2, maximum*1.2)
         plt.ylim(-maximum*1.2, maximum*1.2)
 
@@ -933,7 +978,13 @@ def plot_orbit( S_sol, s_radius_x, s_radius_y, save, show, directory, name):
 
 def parse_args():
     """
-    Parse command line arguments.
+    Set up the command line arguments for both the
+    integrator and the animation classes.
+
+    Returns
+    -------
+    parser.parse_args()
+        Parsed command line arguments.
     """
     # Initialize the parser
     parser = argparse.ArgumentParser(description = 'Orbit around a black hole simulation.')
@@ -943,8 +994,7 @@ def parse_args():
     
     # =========================== CelestialSeer ===========================
     seer_parser = subparsers.add_parser(
-        'CelestialSeer', help = 'Run orbit simulation'
-        )
+        'CelestialSeer', help = 'Run orbit simulation')
 
     # Arguments
     seer_parser.add_argument(
@@ -994,8 +1044,7 @@ def parse_args():
 
     # =========================== ChronoPainter ===========================
     painter_parser = subparsers.add_parser(
-        'ChronoPainter', help = 'Create gif from orbit data'
-        )
+        'ChronoPainter', help = 'Create gif from orbit data')
 
     # Arguments
     painter_parser.add_argument(
