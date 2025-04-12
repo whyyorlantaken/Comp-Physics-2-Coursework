@@ -1,13 +1,13 @@
 # Atramenta
----
+```
   ▗▄▖    ■   ▄▄▄ ▗▞▀▜▌▄▄▄▄  ▗▞▀▚▖▄▄▄▄    ■   ▗▞▀▜▌
  ▐▌ ▐▌▗▄▟▙▄▖█    ▝▚▄▟▌█ █ █ ▐▛▀▀▘█   █ ▗▄▟▙▄▖▝▚▄▟▌
  ▐▛▀▜▌  ▐▌  █         █   █ ▝▚▄▄▖█   █   ▐▌   
  ▐▌ ▐▌  ▐▌                               ▐▌      
         ▐▌                               ▐▌       
 
----
-**Atramenta** is our python package for simulating orbits of celestial bodies around a black hole. The implementation has been  divided into three main classes: `OrbitBirther` for initializing the system, `CelestialSeer` for solving the equations of motion, and `ChronoPainter` for creating animations of such orbits.
+```
+**Atramenta** is our python package for simulating orbits of celestial bodies around a black hole with both *classical* and *relativistic* approaches. The implementation has been  divided into three main classes: `OrbitBirther` for initializing the system, `CelestialSeer` for solving the equations of motion, and `ChronoPainter` for creating animations of such orbits.
 
 ## Instructions
 
