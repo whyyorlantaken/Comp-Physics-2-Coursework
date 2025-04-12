@@ -1,16 +1,31 @@
+"""
+Implementation of simple unit tests for Atramenta.
+
+Author: MAY
+Date: April 2025
+"""
+# Libraries
 import pytest
 import numpy as np
 
+# Classes to be tested
 from orbits import OrbitBirther, CelestialSeer
 
 class TestModule(object):
     """
-    Tests for the OrbitBirther class which handles initial conditions.
+    Class to test the module functionality.
+    It contains unit tests for the OrbitBirther
+    and CelestialSeer classes.
     """
     @classmethod
     def setup_class(cls):
         """
-        Common test parameters.
+        Setup for the test class.
+
+        Parameters
+        ----------
+        cls : class
+            The test class itself.
         """
         cls.M = 5e6
         cls.a = 1.0
@@ -19,7 +34,12 @@ class TestModule(object):
     @classmethod
     def teardown_class(cls):
         """
-        Clean up after all tests.
+        Clean up after the test class.
+
+        Parameters
+        ----------
+        cls : class
+            The test class itself.
         """
         del cls.M
         del cls.a
@@ -49,7 +69,10 @@ class TestModule(object):
 
     def test_valid_inputs(self):
         """
-        Test that valid inputs are accepted correctly
+        Test valid inputs for the OrbitBirther class
+        using some adequate assertions.
+
+        Note: The initial conditions were calculated manually.
         """
         # Attribute assignment
         assert self.orbit.M == self.M
@@ -71,7 +94,8 @@ class TestModule(object):
 
     def test_invalid_inputs(self):
         """
-        Test invalid inputs
+        Test invalid inputs for the OrbitBirther class
+        using pytest.raises to check for exceptions.
         """
         # Negative mass
         with pytest.raises(ValueError):
@@ -91,6 +115,9 @@ class TestModule(object):
 
     def test_different_outcomes(self):
         """
+        Test that different inputs actually lead
+        to different results. Numerical methods and 
+        slope functions are varied.
         """
         # ---------------- METHODS ----------------
         

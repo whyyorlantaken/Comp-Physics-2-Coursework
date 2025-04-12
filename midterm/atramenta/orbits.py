@@ -173,7 +173,7 @@ class CelestialSeer(OrbitBirther):
         super().__init__(M, a, e, save_start)
 
     #######################################################
-    #                    Public method                    #
+    #                   Public methods                    #
     #######################################################
 
     def integrate(self, 
@@ -242,8 +242,8 @@ class CelestialSeer(OrbitBirther):
                 self.s0, 
                 method = "RK45",
                 t_eval = self.t_eval, 
-                rtol = 1e-6, 
-                atol = 1e-6
+                rtol = 1e-13, 
+                atol = 1e-13
             )
             t_sol, S_sol = sol.t, sol.y
 
@@ -259,6 +259,82 @@ class CelestialSeer(OrbitBirther):
                 self._gif(gif_name, frames)
 
         return t_sol, S_sol, "outputfolder/" + self.filename
+
+    def measure_convergence(self,
+                    N: float = 2.0,
+                    method: str = 'RK3',
+                    relativistic: bool = None,
+                    num_steps: tuple = (1000, 5000, 10000)) -> None:
+                    
+        """
+        It computes the mean Euclidean error of the given integration
+        method with respect to a higher-order solution across different
+        time steps. Multiple integrations are done.
+
+        Parameters
+        ----------
+        N : float
+            Number of periods to simulate.
+        method : str
+            Integration method to use from 'RK3', 'TPZ', or 'SPY'.
+        relativistic : bool
+            If True, we use the relativistic slope.
+        num_steps : tuple
+            Number of steps to use for the integration.
+            This changes the step size.
+
+        Returns
+        -------
+        tuple
+            (step_size, errors, coeff) - step sizes, errors and power law coefficient.
+        """
+        # Empty lists for solutions, error and step sizes
+        methd_sol = []
+        scipy_sol = []
+        errors    = []
+        step_size = []
+
+        # Loop over the number of steps
+        for steps in num_steps:
+
+            # Integrate with the specified method
+            _, S_meth, _ = self.integrate(
+                N = N,
+                steps = steps,
+                method = method,
+                relativistic = relativistic
+            )
+
+            # and with scipy
+            _, S_scpy, _ = self.integrate(
+                N = N,
+                steps = steps,
+                method = 'SPY',
+                relativistic = relativistic
+            )
+
+            # Append all (self.dt is updated each time `integrate()` is called)
+            methd_sol.append(S_meth)
+            scipy_sol.append(S_scpy)
+            step_size.append(self.dt)
+
+        # Compute the mean Euclidean error for each
+        for i in range(len(num_steps)):
+
+            # Get the solutions 
+            S_methd = methd_sol[i]
+            S_scipy = scipy_sol[i]
+
+            # Compute the error
+            norm = self._mean_euclidean_error(S_methd, S_scipy)
+
+            # Append
+            errors.append(norm)
+
+        # Estimate the power law coefficient
+        coeff = self._pl_coeff(step_size, errors)
+
+        return step_size, errors, coeff
 
     #######################################################
     #                  Private methods                    #
@@ -458,7 +534,7 @@ class CelestialSeer(OrbitBirther):
 
             f.attrs['schwarzschild_radius'] = self.s_radius
 
-        print(f"Simulation results saved to {filepath}.") 
+        print(f"Saved to {filepath}.") 
     
     def _max_time(self, N: float = 2.0) -> float:
         """
@@ -541,6 +617,47 @@ class CelestialSeer(OrbitBirther):
             duration = 1.0,
             dpi      = 120
         )
+
+    @staticmethod
+    def _mean_euclidean_error(s1: np.ndarray,
+                             s2: np.ndarray) -> float:
+        """
+        Compute the mean euclidean error between two solutios.
+
+        Parameters
+        ----------
+        s1 : np.ndarray
+            First solution.
+        s2 : np.ndarray
+            Second solution.
+
+        Returns
+        -------
+        float
+            Mean euclidean error.
+        """
+        return np.sqrt(np.mean((s1 - s2)**2))
+    
+    @staticmethod
+    def _pl_coeff(step_size: list, 
+                         errors: list) -> float:
+        """
+        Estimate the power law coefficient of the
+        step size and the error.
+
+        Parameters
+        ----------
+        step_size : list
+            List of step sizes
+        errors : list
+            List of errors
+
+        Returns
+        -------
+        float
+            Power law coefficient.
+        """
+        return np.polyfit(np.log(step_size), np.log(errors), 1)[0]
     
 class ChronoPainter:
     """
@@ -1041,6 +1158,10 @@ def parse_args():
         '--frames', type = int, default = 100,
         help = 'Number of frames for the GIF.'
         )
+    seer_parser.add_argument(
+        '--show_gif', action = 'store_true',
+        help = 'Show the GIF in a notebook.'
+        )
 
     # =========================== ChronoPainter ===========================
     painter_parser = subparsers.add_parser(
@@ -1085,6 +1206,15 @@ if __name__ == "__main__":
 
     # Initialize the parser
     args = parse_args()
+
+    # Package name
+    print("")
+    print("=========================================================")
+    print("    ▗▄▖    ■   ▄▄▄ ▗▞▀▜▌▄▄▄▄  ▗▞▀▚▖▄▄▄▄    ■   ▗▞▀▜▌")
+    print("   ▐▌ ▐▌▗▄▟▙▄▖█    ▝▚▄▟▌█ █ █ ▐▛▀▀▘█   █ ▗▄▟▙▄▖▝▚▄▟▌")
+    print("   ▐▛▀▜▌  ▐▌  █         █   █ ▝▚▄▄▖█   █   ▐▌       ")
+    print("   ▐▌ ▐▌  ▐▌                               ▐▌       ")
+    print("          ▐▌                               ▐▌       ")
 
     # Integrator class
     if args.command == 'CelestialSeer':
