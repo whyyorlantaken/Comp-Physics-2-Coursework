@@ -4,7 +4,7 @@
 ╚═══════════════════════════════════════════════════╝
 ------Simulate planet orbits around a black hole-----
 
-Author: MAY
+Author: Males-Araujo Yorlan
 Date: April 2025
 
 Note: The name stands for "black ink" in Latin.
@@ -859,8 +859,8 @@ class ChronoPainter:
             DPI for the images.
         """
         # Create directory if it does not exist
-        if not os.path.exists("outputfolder/frames"):
-            os.makedirs("outputfolder/frames")
+        if not os.path.exists("outputfolder/sketches"):
+            os.makedirs("outputfolder/sketches")
 
         # Equally spaced frames
         frame_indices = np.linspace(0, len(self.t_00) - 1, frames, dtype = int)
@@ -890,7 +890,7 @@ class ChronoPainter:
             
         # End
         print("----------------------------------------------------------")
-        print(f"All {frames} frames saved to outputfolder/frames.")
+        print(f"All {frames} frames saved to outputfolder/sketches.")
         
     def _save_sketch(self, 
                      time_idx: int, 
@@ -1256,7 +1256,7 @@ if __name__ == "__main__":
             frames = args.frames
         )
         print("")
-        print(f"DONE. Final time on planet: {t_sol[-1]:.1e} yr.")
+        print(f"DONE. Final time on planet: {t_sol[-1]:.1e} Earth years.")
         print("")   
         print("==========================================================")
 
