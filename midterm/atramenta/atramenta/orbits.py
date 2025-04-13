@@ -21,6 +21,11 @@ import imageio.v2 as imageio
 import matplotlib.pyplot as plt
 from IPython.display import Image as IPImage, display
 
+# ----------------- Folder -----------------
+
+# Fixed path
+OUTPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'outputfolder'))
+
 # ---------------- Constants ----------------
 
 G = 4 * np.pi**2  # AU^3/M_sun * yr^2
@@ -132,8 +137,8 @@ class OrbitBirther:
         To save the initial conditions plot.
         """
         # Create directory if not present
-        if not os.path.exists("outputfolder"):
-            os.makedirs("outputfolder")
+        if not os.path.exists(OUTPUT_DIR):
+            os.makedirs(OUTPUT_DIR)
 
         # Save
         plot_orbit(
@@ -141,7 +146,7 @@ class OrbitBirther:
             self.s_radius_x, self.s_radius_y, 
             save = True, 
             show = False, 
-            directory = "outputfolder",
+            directory = OUTPUT_DIR,
             name = f"M{self.M:.1e}-a{self.a:.1f}-e{self.e:.3f}.png")
     
 class CelestialSeer(OrbitBirther):
@@ -258,7 +263,7 @@ class CelestialSeer(OrbitBirther):
             if gif_name is not None:
                 self._gif(gif_name, frames)
 
-        return t_sol, S_sol, "outputfolder/" + self.filename
+        return t_sol, S_sol, os.path.join(OUTPUT_DIR, self.filename)
 
     def measure_convergence(self,
                     N: float = 2.0,
@@ -507,11 +512,11 @@ class CelestialSeer(OrbitBirther):
             Number of periods simulated.
         """
         # Create directory if it doesn't exist
-        if not os.path.exists("outputfolder"):
-            os.makedirs("outputfolder")
+        if not os.path.exists(OUTPUT_DIR):
+            os.makedirs(OUTPUT_DIR)
         
         # Assign filepath
-        filepath = os.path.join("outputfolder", self.filename)
+        filepath = os.path.join(OUTPUT_DIR, self.filename)
         
         # Save the data
         with h5py.File(filepath, 'w') as f:
@@ -534,7 +539,7 @@ class CelestialSeer(OrbitBirther):
 
             f.attrs['schwarzschild_radius'] = self.s_radius
 
-        print(f"Saved to {filepath}.") 
+        print(f"Saved to {rel_path(filepath)}.")
     
     def _max_time(self, N: float = 2.0) -> float:
         """
@@ -605,7 +610,7 @@ class CelestialSeer(OrbitBirther):
         """
         # Initialize the painter class
         painter = ChronoPainter(
-                    orbits = ("outputfolder/" + self.filename,),
+                    orbits = (os.path.join(OUTPUT_DIR, self.filename),),
                     labels = (f"Rel: {self.relativistic}, method: {self.method}",), 
                     colors = ('deepskyblue',)
                 )
@@ -728,8 +733,8 @@ class ChronoPainter:
             If True, show the GIF in a notebook.
         """
         # Create directory for the frames
-        if not os.path.exists("outputfolder/sketches"):
-            os.makedirs("outputfolder/sketches")
+        if not os.path.exists(os.path.join(OUTPUT_DIR, "sketches")):
+            os.makedirs(os.path.join(OUTPUT_DIR, "sketches"))
 
         # Print
         print("----------------------------------------------------------")
@@ -748,17 +753,20 @@ class ChronoPainter:
 
         # Loop through the images
         for i in range(frames):
-            filename = os.path.join("outputfolder/sketches", f"orbit_{i:03d}.png")
+            filename = os.path.join(
+                os.path.join(OUTPUT_DIR, "sketches"),
+                f"orbit_{i:03d}.png"
+            )
             images.append(imageio.imread(filename))
 
         # Save the GIF with loop
-        imageio.mimsave(os.path.join("outputfolder", gif_name),
+        imageio.mimsave(os.path.join(OUTPUT_DIR, gif_name),
                         images, 
                         duration = duration,
                         loop = 0)
 
         # Print
-        print(f"GIF saved to outputfolder/{gif_name}.")
+        print(f"GIF saved to {rel_path(os.path.join(OUTPUT_DIR, gif_name))}.")
         print("----------------------------------------------------------")
 
         # Delete images
@@ -782,7 +790,7 @@ class ChronoPainter:
             Name of the GIF file.
         """
         # Show it
-        img = IPImage(filename = os.path.join("outputfolder", gif_name))
+        img = IPImage(filename = os.path.join(OUTPUT_DIR, gif_name))
         display(img)
 
     #######################################################
@@ -859,8 +867,8 @@ class ChronoPainter:
             DPI for the images.
         """
         # Create directory if it does not exist
-        if not os.path.exists("outputfolder/sketches"):
-            os.makedirs("outputfolder/sketches")
+        if not os.path.exists(os.path.join(OUTPUT_DIR, "sketches")):
+            os.makedirs(os.path.join(OUTPUT_DIR, "sketches"))
 
         # Equally spaced frames
         frame_indices = np.linspace(0, len(self.t_00) - 1, frames, dtype = int)
@@ -890,7 +898,7 @@ class ChronoPainter:
             
         # End
         print("----------------------------------------------------------")
-        print(f"All {frames} frames saved to outputfolder/sketches.")
+        print(f"All {frames} frames saved to {rel_path(os.path.join(OUTPUT_DIR, 'sketches'))}.")
         
     def _save_sketch(self, 
                      time_idx: int, 
@@ -955,7 +963,7 @@ class ChronoPainter:
         
             # Save it
             plt.savefig(os.path.join(
-                "outputfolder/sketches",
+                os.path.join(OUTPUT_DIR, "sketches"),
                 f"orbit_{frame_idx:03d}.png"),
                 dpi = dpi, 
                 bbox_inches = 'tight'
@@ -968,12 +976,12 @@ class ChronoPainter:
         since they're no longer needed.
         """
         # Remove all pngs in the folder
-        for filename in os.listdir("outputfolder/sketches"):
+        for filename in os.listdir(os.path.join(OUTPUT_DIR, "sketches")):
             if filename.endswith(".png"):
-                os.remove(os.path.join("outputfolder/sketches", filename))
+                os.remove(os.path.join(OUTPUT_DIR, "sketches", filename))
 
         # Also the directory
-        os.rmdir("outputfolder/sketches")
+        os.rmdir(os.path.join(OUTPUT_DIR, "sketches"))
 
         # Print
         print("All frames have been deleted.")
@@ -1092,6 +1100,26 @@ def plot_orbit(S_sol: np.ndarray,
             plt.show()
 
         plt.close()
+
+def rel_path(path: str) -> str:
+    """
+    Absolute path to relative path. It makes
+    the location of files more readable.
+    
+    Parameters
+    ----------
+    path : str
+        Full absolute path.
+        
+    Returns
+    -------
+    str
+        Simplified path.
+    """
+    # Relative short path
+    rel_path = os.path.relpath(path, os.path.dirname(OUTPUT_DIR))
+
+    return rel_path
 
 def parse_args():
     """

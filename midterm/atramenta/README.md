@@ -39,7 +39,7 @@ python orbits.py CelestialSeer \
   --frames 100
 ```
 
-The output will look like this:
+The output will be (the ASCII art looks better in a terminal):
 ```sh
 =========================================================
     ▗▄▖    ■   ▄▄▄ ▗▞▀▜▌▄▄▄▄  ▗▞▀▚▖▄▄▄▄    ■   ▗▞▀▜▌
@@ -103,7 +103,7 @@ python orbits.py ChronoPainter \
   --orbits outputfolder/M5.0e+06-a1.0-e0.017-relat-RK3.h5 outputfolder/M5.0e+06-a1.0-e0.017-class-RK3.h5 \
   --labels "Relat" "Class" \
   --colors "magenta" "khaki" \
-  --gif_name "orbit.gif" \
+  --gif_name "orbit2.gif" \
   --duration 0.1 \
   --frames 100 \
   --dpi 120
@@ -128,7 +128,7 @@ Initializing ChronoPainter (animation class):
     Colors: magenta, khaki
 
     Creating animation:
-        GIF name:   orbit.gif
+        GIF name:   orbit2.gif
         Duration:   0.1
         Frames:     100
         DPI:        120
@@ -153,7 +153,7 @@ All 100 frames saved to outputfolder/sketches.
 ----------------------------------------------------------
 Assembling the GIF...
 ----------------------------------------------------------
-GIF saved to outputfolder/orbit.gif.
+GIF saved to outputfolder/orbit2.gif.
 ----------------------------------------------------------
 All frames have been deleted.
 ----------------------------------------------------------
