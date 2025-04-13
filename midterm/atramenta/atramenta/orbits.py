@@ -675,6 +675,7 @@ class ChronoPainter:
     ----------
     orbits : tuple
         Tuple of strings with the HDF5 file paths.
+        Assuming they are in the output folder.
     labels : tuple
         Labels for each orbit.
     colors : tuple
@@ -693,13 +694,18 @@ class ChronoPainter:
         
         # with strings pointing to the files
         for orbit in orbits:
+
+            # Join 
+            orbit = os.path.join(OUTPUT_DIR, orbit)
+
+            # Validate
             if not isinstance(orbit, str):
                 raise TypeError("Each element in the orbits tuple must be a string.")
             if not os.path.exists(orbit):
                 raise FileNotFoundError(f"The file {orbit} does not exist.")
             
         # Make them attributes
-        self.orbits = orbits
+        self.orbits = tuple(os.path.join(OUTPUT_DIR, orbit) for orbit in orbits)
         self.labels = labels
         self.colors = colors
 

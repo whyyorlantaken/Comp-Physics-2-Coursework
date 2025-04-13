@@ -9,7 +9,7 @@ import pytest
 import numpy as np
 
 # Classes to be tested
-from orbits import OrbitBirther, CelestialSeer
+from atramenta import OrbitBirther, CelestialSeer
 
 class TestModule(object):
     """
