@@ -1,42 +1,37 @@
 """
 ╔═══════════════════════════════════════════════════╗
-║                     Name                          ║
+║                       AZULA                       ║
 ╚═══════════════════════════════════════════════════╝
-------Description-----
+------------- Simulate metal conduction ------------- 
 
 Author: Males-Araujo Yorlan
 Date: May 2025
 
-[What the name stands for]
+Note: Azula is a character from 
+      Avatar: The Last Airbender.
+      She is a princess, fire master,
+      and can control heat.
 """
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #                      Imports
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-import os
-# import h5py
-# import argparse
-
 import numpy as np
-from scipy.integrate import solve_ivp
-
-# import imageio.v2 as imageio
 import matplotlib.pyplot as plt
-# from IPython.display import Image as IPImage, display
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                     Dictionary
+#                Diffusivities in cm²/s
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 diffusivities_dir = {
-    "Copper":   111.0,
-    "Iron":     23.0,
-    "Aluminum": 97.0,
-    "Brass":    34.0,
-    "Steel":    18.0,
-    "Zinc":     63.0,
-    "Lead":     22.0,
-    "Titanium": 9.8
+    "Copper":    1.11,
+    "Iron":      0.23,
+    "Aluminium": 0.97,
+    "Brass":     0.34,
+    "Steel":     0.18,
+    "Zinc":      0.63,
+    "Lead":      0.22,
+    "Titanium":  0.098
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -58,7 +53,6 @@ class Integrator:
                   dx: float = 0.01,
                   x_min: float = -10,
                   x_max: float = 10,
-                  t_min: float = 0,
                   t_max: float = 1,
                   ic_type: str = "Smooth",
                   bc_type: str = "Fixed") -> None:
@@ -70,8 +64,7 @@ class Integrator:
             dt, 
             dx, 
             x_min, 
-            x_max, 
-            t_min, 
+            x_max,
             t_max,
             ic_type, 
             bc_type
@@ -96,6 +89,9 @@ class Integrator:
             # And add it to the temperature matrix
             self.T[1:-1, j+1] = sln_b
 
+        # Detect thermal equilibrium
+        self._detect_thermal_eq()
+
         return self.x, self.t, self.T
 
     def _integrator_setup(self,
@@ -103,7 +99,6 @@ class Integrator:
                           dx: float = 0.01,
                           x_min: float = -10,
                           x_max: float = 10,
-                          t_min: float = 0,
                           t_max: float = 1,
                           ic_type: str = "Smooth", 
                           bc_type: str = "Fixed") -> None:
@@ -114,7 +109,7 @@ class Integrator:
         self.dt = dt
         self.dx = dx
         self.x = np.arange(x_min, x_max + dx, dx)
-        self.t = np.arange(t_min, t_max + dt, dt)
+        self.t = np.arange(0, t_max + dt, dt)
 
         # R-factor
         self.r_factor = self.diffussivity * dt / dx**2
@@ -133,25 +128,33 @@ class Integrator:
         self.D1 = self._create_matrix(n, -1)
         self.D2 = self._create_matrix(n, +1)
 
-    def _create_matrix(self, 
-                       n: int, 
-                       sign: int) -> np.ndarray:
+    def _detect_thermal_eq(self,
+                           threshold: float = 0.05,
+                           consecutive_steps: int = 2) -> None:
         """
-        Create a tridiagonal matrix for the Crank-Nicholson method.
+        Detect the thermal equation.
         """
-        # Main diagonal
-        diag = np.diag([2 - sign * 2 * self.r_factor]*(n - 2), 0)
-        
-        # -1 diagonal
-        diag_minus = np.diag([sign * self.r_factor]*(n - 3), -1)
-        
-        # +1 diagonal
-        diag_plus =  np.diag([sign * self.r_factor]*(n - 3), +1)
+        # Average all profiles
+        avg_temps = np.mean(self.T, axis = 0)
 
-        # Combine them all
-        matrix = diag + diag_minus + diag_plus
+        # Loop over solutions
+        count = 0
+        for i in range(1, len(self.t) - 1):
+
+            # Difference between consecutive profiles
+            diff = np.abs(avg_temps[i] - avg_temps[i-1])
+
+            # Small changes have to be persistent
+            if diff < threshold:
+                count += 1
+                if count >= consecutive_steps:
+                    print(f"Thermal equilibrium reached at t = {self.t[i-(consecutive_steps-1)]:.2f} s! :)")
+                    return self.t[i-(consecutive_steps-1)]
+            else:
+                count = 0
         
-        return matrix
+        print(f"Thermal equilibrium not reached for t = {self.t[-1]:.2f} s :(")
+        return self.t[-1]
 
     def _determine_conditions(self, 
                               ic_type: str, 
@@ -178,21 +181,36 @@ class Integrator:
             raise ValueError("Invalid boundary condition type." +
                                 "Choose 'Fixed' or 'Varying'.")
 
+    def _create_matrix(self, 
+                       n: int, 
+                       sign: int) -> np.ndarray:
+        """
+        Create a tridiagonal matrix for the Crank-Nicholson method.
+        """
+        # Main diagonal
+        diag = np.diag([2 - sign * 2 * self.r_factor]*(n - 2), 0)
+        
+        # -1 diagonal
+        diag_minus = np.diag([sign * self.r_factor]*(n - 3), -1)
+        
+        # +1 diagonal
+        diag_plus =  np.diag([sign * self.r_factor]*(n - 3), +1)
 
-# TEST with working method
+        # Combine them all
+        matrix = diag + diag_minus + diag_plus
+        
+        return matrix
+
 if __name__ == "__main__":
 
     # Create the integrator
-    integrator = Integrator(metal="Copper")
+    integrator = Integrator(metal="Steel")
 
     # Integrate
     x, t, T = integrator.integrate(
-        dt = 0.05,
+        dt = 10,
         dx = 0.01,
-        x_min = -10,
-        x_max = 10,
-        t_min = 0,
-        t_max = 2.0,
+        t_max = 2000.0,
         ic_type = "Smooth",
         bc_type = "Fixed"
     )

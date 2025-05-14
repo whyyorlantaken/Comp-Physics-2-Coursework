@@ -26,11 +26,6 @@ from IPython.display import Image as IPImage, display
 # Fixed path
 OUTPUT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'outputfolder'))
 
-# ---------------- Constants ----------------
-
-G = 4 * np.pi**2  # AU^3/M_sun * yr^2
-c = 63241.54      # AU/yr
-
 # ----------------- Classes -----------------
 
 class OrbitBirther:
