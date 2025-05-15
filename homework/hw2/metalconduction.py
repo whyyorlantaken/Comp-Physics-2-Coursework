@@ -16,8 +16,14 @@ Note: Azula is a character from
 #                      Imports
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+import sys
+import time
+import argparse
+
 import numpy as np
 import matplotlib.pyplot as plt
+
+from joblib import Parallel, delayed
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #                Diffusivities in cm²/s
@@ -38,7 +44,7 @@ diffusivities_dir = {
 #               Crank-Nicholson method
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-class Integrator:
+class SingleSolver:
     """
     """
     def __init__(self, metal: str = "Copper"):
@@ -49,11 +55,11 @@ class Integrator:
         self.diffussivity = diffusivities_dir[metal]
 
     def integrate(self,
-                  dt: float = 0.01,
-                  dx: float = 0.01,
+                  dt: float = 0.5,
+                  dx: float = 0.1,
                   x_min: float = -10,
                   x_max: float = 10,
-                  t_max: float = 1,
+                  t_max: float = 100,
                   ic_type: str = "Smooth",
                   bc_type: str = "Fixed") -> None:
         """
@@ -90,16 +96,16 @@ class Integrator:
             self.T[1:-1, j+1] = sln_b
 
         # Detect thermal equilibrium
-        self._detect_thermal_eq()
+        eq_reached, eq_time = self._detect_thermal_eq()
 
-        return self.x, self.t, self.T
+        return self.x, self.t, self.T, eq_reached, eq_time
 
     def _integrator_setup(self,
-                          dt: float = 0.01,
-                          dx: float = 0.01,
+                          dt: float = 0.5,
+                          dx: float = 0.1,
                           x_min: float = -10,
                           x_max: float = 10,
-                          t_max: float = 1,
+                          t_max: float = 100,
                           ic_type: str = "Smooth", 
                           bc_type: str = "Fixed") -> None:
         """
@@ -148,13 +154,14 @@ class Integrator:
             if diff < threshold:
                 count += 1
                 if count >= consecutive_steps:
-                    print(f"Thermal equilibrium reached at t = {self.t[i-(consecutive_steps-1)]:.2f} s! :)")
-                    return self.t[i-(consecutive_steps-1)]
+                    # return print(f"  - {self.metal}: {True}, {self.t[i-(consecutive_steps-1)]:.2f} s")
+                    return True, self.t[i-(consecutive_steps - 1)]
             else:
                 count = 0
         
-        print(f"Thermal equilibrium not reached for t = {self.t[-1]:.2f} s :(")
-        return self.t[-1]
+        # print(f"> {self.metal}: Thermal eq. not reached in {self.t[-1]:.2f} s :(")
+        # return print(f"  - {self.metal}: {False}, {self.t[-1]:.2f} s")
+        return False, self.t[-1]
 
     def _determine_conditions(self, 
                               ic_type: str, 
@@ -200,33 +207,254 @@ class Integrator:
         matrix = diag + diag_minus + diag_plus
         
         return matrix
+    
 
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#                  Parallelization
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+class MultipleSolver:
+    """
+    Parallelize the integration.
+    """
+    def __init__(self, 
+                 metals: list = ["Iron", "Lead"], 
+                 parallel: bool = False):
+        """
+        Initialize.
+        """
+        self.metals = metals
+        self.n_jobs = len(metals)
+        self.parallel = parallel
+        self.integrators = [SingleSolver(metal) for metal in metals]
+
+    def integrate(self,
+                  dt: float = 0.5,
+                  dx: float = 0.1,
+                  x_min: float = -10,
+                  x_max: float = 10,
+                  t_max: float = 100,
+                  ic_type: str = "Smooth",
+                  bc_type: str = "Fixed") -> None   :
+        """
+        Integrate the temperature distribution.
+        """
+        # Info
+        print("> Metals to be integrated:")
+        for metal in self.metals:
+            print(f"  - {metal} [{diffusivities_dir[metal]} cm²/s]")
+
+        # Parallel integration
+        if self.parallel:
+
+            # Info
+            print("━━" * 30)
+            print("  "*8 + "PARALLEL INTEGRATION STARTED")
+            print("━━" * 30)
+            print(f"> Number of jobs: {self.n_jobs}.")
+            print()
+            print("> Reached thermal equilibrium:")
+            # Start time
+            start = time.time()
+
+            results = Parallel(n_jobs = self.n_jobs)(
+                delayed(integrator.integrate)(
+                    dt, 
+                    dx, 
+                    x_min, 
+                    x_max, 
+                    t_max, 
+                    ic_type, 
+                    bc_type
+                ) for integrator in self.integrators
+            )
+
+            # Thermal equilibrium
+            for i, result in enumerate(results):
+
+                # Extract and print
+                _, _, _, eq_reached, eq_time = result
+                print(f"  - {self.metals[i]}: {eq_reached}, {eq_time:.2f} s")
+
+            # End time
+            print()
+            print(f"> Total integration time: {(time.time() - start):.2f} s.")
+            print("━━" * 30)
+            print("  "*8 + "PARALLEL INTEGRATION ENDED")
+            print("━━" * 30)
+
+        # Sequential integration
+        else:
+            # Info
+            print("━━" * 30)
+            print("  "*8 + "SEQUENTIAL INTEGRATION STARTED")
+            print("━━" * 30)
+            print("> Reached thermal equilibrium:")
+            
+            # Start time
+            start = time.time()
+
+            results = [integrator.integrate(
+                dt, 
+                dx, 
+                x_min, 
+                x_max, 
+                t_max, 
+                ic_type, 
+                bc_type
+            ) for integrator in self.integrators]
+
+            # Thermal equilibrium
+            for i, result in enumerate(results):
+
+                # Extract and print
+                _, _, _, eq_reached, eq_time = result
+                print(f"  - {self.metals[i]}: {eq_reached}, {eq_time:.2f} s")
+
+            # End time
+            print()
+            print(f"> Total integration time: {(time.time() - start):.2f} s.")
+            print("━━" * 30)
+            print("  "*8 + "SEQUENTIAL INTEGRATION ENDED")
+            print("━━" * 30)
+
+        return results
+    
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#                      Argparse
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+def parse_args():
+    """
+    Parse command line arguments.
+    """
+    # Create the parser
+    parser = argparse.ArgumentParser(description = "Metal conduction simulation.")
+
+    # Integration parameters
+    parser.add_argument(
+        "-dt",
+        type = float,
+        default = 0.1,
+        help = "Time step for the integration."
+    )
+    parser.add_argument(
+        "-dx",
+        type = float,
+        default = 0.1,
+        help = "Space step for the integration."
+    )
+    parser.add_argument(
+        "-x_min",
+        type = float,
+        default = -10,
+        help = "Minimum x value."
+    )
+    parser.add_argument(
+        "-x_max",
+        type = float,
+        default = 10,
+        help = "Maximum x value."
+    )
+    parser.add_argument(
+        "-t_max",
+        type = float,
+        default = 100,
+        help = "Maximum time in s for the integration."
+    )
+    parser.add_argument(
+        "-ic",
+        type = str,
+        default = "Smooth",
+        choices = ["Smooth", "Noisy"],
+        help = "Type of initial condition."
+    )
+    parser.add_argument(
+        "-bc",
+        type = str,
+        default = "Fixed",
+        choices = ["Fixed", "Varying"],
+        help = "Type of boundary condition."
+    )
+
+    # Others
+    parser.add_argument(
+        "-m", "--metals", 
+        nargs = "+", 
+        default = ["Iron", "Lead"],
+        help = "List of metals to simulate."
+    )
+    parser.add_argument(
+        "-p", "--parallel", 
+        action = "store_true",
+        help = "Use parallel integration."
+    )
+    parser.add_argument(
+        "-l", "--log",
+        action = "store_true",
+        help = "Save output to a log file."
+    )
+    return parser.parse_args()
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#                      Main
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    
 if __name__ == "__main__":
 
-    # Create the integrator
-    integrator = Integrator(metal="Steel")
+    # Arguments
+    args = parse_args()
+    dt = args.dt
+    dx = args.dx
+    x_min = args.x_min
+    x_max = args.x_max
+    t_max = args.t_max
+    ic_type = args.ic
+    bc_type = args.bc
+    metals = args.metals
+    parallel = args.parallel
 
-    # Integrate
-    x, t, T = integrator.integrate(
-        dt = 10,
-        dx = 0.01,
-        t_max = 2000.0,
+    # Log file
+    if args.log:
+        log_filename = f"azula.{len(metals)}.{'par' if parallel else 'seq'}.log"
+        sys.stdout = open(log_filename, "w")
+
+    # Header
+    print("━━" * 30)
+    print("             |                      '||          ")
+    print("            |||    ......  ... ...   ||   ....   ")
+    print("           |  ||   '  .|'   ||  ||   ||  '' .||  ")
+    print("          .''''|.   .|'     ||  ||   ||  .|' ||  ")
+    print("         .|.  .||. ||....|  '|..'|. .||. '|..'|'.v1.0")
+    print("━━" * 30)
+    print("  "*8 + "METAL CONDUCTION SIMULATION")
+    print("━━" * 30)
+    print("> Parameters:")
+    print(f"  - dt          {dt:.2f} s")
+    print(f"  - dx          {dx:.2f} cm")
+    print(f"  - x_min      {x_min:.2f} cm")
+    print(f"  - x_max       {x_max:.2f} cm")
+    print(f"  - t_max       {t_max:.2f} s")
+    print(f"  - ic_type     {ic_type}")
+    print(f"  - bc_type     {bc_type}")
+    print()
+
+    # Create the solver
+    solver = MultipleSolver(
+        metals = metals,
+        parallel = parallel
+    )
+
+    results = solver.integrate(
+        dt = 0.1,
+        dx = 0.1,
+        x_min = -10,
+        x_max = 10,
+        t_max = 100,
         ic_type = "Smooth",
         bc_type = "Fixed"
     )
-    
-    # Plotting
-    R = np.linspace(1, 0, len(t))
-    G = 0
-    B = np.linspace(0, 1, len(t))
-
-    # FIgure environment
-    plt.figure(figsize=(8,3))
-
-    for j in range(len(t)):
-        plt.plot(x, T[:, j] , color = [R[j], G, B[j]])
-
-    plt.show()
 
 
 
