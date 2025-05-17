@@ -1,4 +1,3 @@
-Output saved to azula.4.seq.log.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
              |                      '||          
             |||    ......  ... ...   ||   ....   
@@ -8,21 +7,30 @@ Output saved to azula.4.seq.log.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 METAL CONDUCTION SIMULATION
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+> Parameters:
+  - dt          0.03 s
+  - dx          0.03 cm
+  - x_min      -10.00 cm
+  - x_max       10.00 cm
+  - t_max       100.00 s
+  - ic_type     Smooth
+  - bc_type     Fixed
+
 > Metals to be integrated:
+  - Copper [1.11 cm²/s]
   - Iron [0.23 cm²/s]
   - Lead [0.22 cm²/s]
-  - Copper [1.11 cm²/s]
   - Brass [0.34 cm²/s]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 SEQUENTIAL INTEGRATION STARTED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 > Reached thermal equilibrium:
-  - Iron: True, 51.50 s
-  - Lead: True, 49.00 s
-  - Copper: True, 65.10 s
-  - Brass: True, 72.20 s
+  - Copper: True, 21.51 s
+  - Iron: True, 0.03 s
+  - Lead: True, 0.03 s
+  - Brass: True, 0.03 s
 
-> Total integration time: 1.63 s.
+> Total integration time: 103.66 s.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 SEQUENTIAL INTEGRATION ENDED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

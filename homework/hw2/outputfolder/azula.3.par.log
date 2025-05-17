@@ -9,7 +9,7 @@
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 > Parameters:
   - dt          0.10 s
-  - dx          0.10 cm
+  - dx          0.05 cm
   - x_min      -10.00 cm
   - x_max       10.00 cm
   - t_max       100.00 s
@@ -17,18 +17,20 @@
   - bc_type     Fixed
 
 > Metals to be integrated:
+  - Copper [1.11 cm²/s]
   - Iron [0.23 cm²/s]
-  - Lead [0.22 cm²/s]
+  - Aluminum [0.97 cm²/s]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 PARALLEL INTEGRATION STARTED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-> Number of jobs: 2.
+> Number of jobs: 3.
 
 > Reached thermal equilibrium:
-  - Iron: True, 51.50 s
-  - Lead: True, 49.00 s
+  - Copper: True, 65.20 s
+  - Iron: True, 51.80 s
+  - Aluminum: True, 69.00 s
 
-> Total integration time: 0.70 s.
+> Total integration time: 3.38 s.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
                 PARALLEL INTEGRATION ENDED
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

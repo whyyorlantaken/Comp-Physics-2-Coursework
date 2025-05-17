@@ -16,6 +16,7 @@ Note: Azula is a character from
 #                      Imports
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+import os
 import sys
 import time
 import argparse
@@ -32,7 +33,7 @@ from joblib import Parallel, delayed
 diffusivities_dir = {
     "Copper":    1.11,
     "Iron":      0.23,
-    "Aluminium": 0.97,
+    "Aluminum": 0.97,
     "Brass":     0.34,
     "Steel":     0.18,
     "Zinc":      0.63,
@@ -41,7 +42,7 @@ diffusivities_dir = {
 }
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#               Crank-Nicholson method
+#        Crank-Nicholson method for one metal
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 class SingleSolver:
@@ -210,7 +211,7 @@ class SingleSolver:
     
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                  Parallelization
+#     Multiple metals with optional parallelization
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 class MultipleSolver:
@@ -218,15 +219,22 @@ class MultipleSolver:
     Parallelize the integration.
     """
     def __init__(self, 
-                 metals: list = ["Iron", "Lead"], 
-                 parallel: bool = False):
+                 metals: list = None,
+                 parallel: bool = False,
+                 n_jobs: int = 1):
         """
         Initialize.
         """
-        self.metals = metals
-        self.n_jobs = len(metals)
+        # Metals
+        if metals is None:
+            self.all_metals = list(diffusivities_dir.keys())
+        else:
+            self.all_metals = metals
+
+        # Others
+        self.n_jobs = n_jobs
         self.parallel = parallel
-        self.integrators = [SingleSolver(metal) for metal in metals]
+        self.integrators = [SingleSolver(metal) for metal in self.all_metals]
 
     def integrate(self,
                   dt: float = 0.5,
@@ -241,7 +249,7 @@ class MultipleSolver:
         """
         # Info
         print("> Metals to be integrated:")
-        for metal in self.metals:
+        for metal in self.all_metals:
             print(f"  - {metal} [{diffusivities_dir[metal]} cm²/s]")
 
         # Parallel integration
@@ -254,9 +262,11 @@ class MultipleSolver:
             print(f"> Number of jobs: {self.n_jobs}.")
             print()
             print("> Reached thermal equilibrium:")
+
             # Start time
             start = time.time()
 
+            # Loop over all metals with parallelization
             results = Parallel(n_jobs = self.n_jobs)(
                 delayed(integrator.integrate)(
                     dt, 
@@ -274,7 +284,7 @@ class MultipleSolver:
 
                 # Extract and print
                 _, _, _, eq_reached, eq_time = result
-                print(f"  - {self.metals[i]}: {eq_reached}, {eq_time:.2f} s")
+                print(f"  - {self.all_metals[i]}: {eq_reached}, {eq_time:.2f} s")
 
             # End time
             print()
@@ -294,6 +304,7 @@ class MultipleSolver:
             # Start time
             start = time.time()
 
+            # Loop over all metals
             results = [integrator.integrate(
                 dt, 
                 dx, 
@@ -309,7 +320,7 @@ class MultipleSolver:
 
                 # Extract and print
                 _, _, _, eq_reached, eq_time = result
-                print(f"  - {self.metals[i]}: {eq_reached}, {eq_time:.2f} s")
+                print(f"  - {self.all_metals[i]}: {eq_reached}, {eq_time:.2f} s")
 
             # End time
             print()
@@ -336,13 +347,13 @@ def parse_args():
     parser.add_argument(
         "-dt",
         type = float,
-        default = 0.1,
+        default = 0.05,
         help = "Time step for the integration."
     )
     parser.add_argument(
         "-dx",
         type = float,
-        default = 0.1,
+        default = 0.02,
         help = "Space step for the integration."
     )
     parser.add_argument(
@@ -380,10 +391,10 @@ def parse_args():
 
     # Others
     parser.add_argument(
-        "-m", "--metals", 
-        nargs = "+", 
-        default = ["Iron", "Lead"],
-        help = "List of metals to simulate."
+        "-n", "--n_jobs",
+        type = int,
+        default = 1,
+        help = "Number of jobs for parallel integration."
     )
     parser.add_argument(
         "-p", "--parallel", 
@@ -412,12 +423,18 @@ if __name__ == "__main__":
     t_max = args.t_max
     ic_type = args.ic
     bc_type = args.bc
-    metals = args.metals
     parallel = args.parallel
+    n_jobs = args.n_jobs
 
     # Log file
     if args.log:
-        log_filename = f"azula.{len(metals)}.{'par' if parallel else 'seq'}.log"
+
+        # Folder
+        if not os.path.exists("outputfolder"):
+            os.makedirs("outputfolder")
+
+        # Save to log file
+        log_filename = f"outputfolder/azula.{n_jobs}.{'par' if parallel else 'seq'}.log"
         sys.stdout = open(log_filename, "w")
 
     # Header
@@ -442,18 +459,18 @@ if __name__ == "__main__":
 
     # Create the solver
     solver = MultipleSolver(
-        metals = metals,
+        n_jobs = n_jobs,
         parallel = parallel
     )
 
     results = solver.integrate(
-        dt = 0.1,
-        dx = 0.1,
-        x_min = -10,
-        x_max = 10,
-        t_max = 100,
-        ic_type = "Smooth",
-        bc_type = "Fixed"
+        dt = dt,
+        dx = dx,
+        x_min = x_min,
+        x_max = x_max,
+        t_max = t_max,
+        ic_type = ic_type,
+        bc_type = bc_type
     )
 
 

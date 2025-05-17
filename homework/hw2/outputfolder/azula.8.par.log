@@ -1,0 +1,46 @@
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+             |                      '||          
+            |||    ......  ... ...   ||   ....   
+           |  ||   '  .|'   ||  ||   ||  '' .||  
+          .''''|.   .|'     ||  ||   ||  .|' ||  
+         .|.  .||. ||....|  '|..'|. .||. '|..'|'.v1.0
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                METAL CONDUCTION SIMULATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+> Parameters:
+  - dt          0.05 s
+  - dx          0.05 cm
+  - x_min      -10.00 cm
+  - x_max       10.00 cm
+  - t_max       100.00 s
+  - ic_type     Smooth
+  - bc_type     Fixed
+
+> Metals to be integrated:
+  - Copper [1.11 cm²/s]
+  - Iron [0.23 cm²/s]
+  - Aluminum [0.97 cm²/s]
+  - Brass [0.34 cm²/s]
+  - Steel [0.18 cm²/s]
+  - Zinc [0.63 cm²/s]
+  - Lead [0.22 cm²/s]
+  - Titanium [0.098 cm²/s]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                PARALLEL INTEGRATION STARTED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+> Number of jobs: 8.
+
+> Reached thermal equilibrium:
+  - Copper: True, 39.85 s
+  - Iron: True, 0.05 s
+  - Aluminum: True, 40.00 s
+  - Brass: True, 0.05 s
+  - Steel: True, 0.05 s
+  - Zinc: True, 34.55 s
+  - Lead: True, 0.05 s
+  - Titanium: True, 0.05 s
+
+> Total integration time: 19.53 s.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+                PARALLEL INTEGRATION ENDED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
