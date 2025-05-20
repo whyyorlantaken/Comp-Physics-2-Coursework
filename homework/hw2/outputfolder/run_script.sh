@@ -3,16 +3,20 @@
 #SBATCH --output=dot.out
 #SBATCH --error=dot.err
 #SBATCH --partition=cpu
-#SBATCH --cpus-per-task=8
-#SBATCH --time=20:00
+#SBATCH --cpus-per-task=16
+#SBATCH --time=1:00:00
 #SBATCH --mem=8G
 
 # Activate the environment
 source ~/.bashrc
 conda activate cptu
 
-# --------------- PARALLEL RUNS ---------------
-python metalconduction.py -p -l -m Copper
-python metalconduction.py -p -l -m Copper Iron
-python metalconduction.py -p -l -m Copper Iron Aluminum Brass
-python metalconduction.py -p -l -m Copper Iron Aluminum Brass Steel Zinc Lead Titanium
+# --------------- RUNS ---------------
+python metalconduction.py -p -l -n 8
+python metalconduction.py -p -l -n 4
+python metalconduction.py -p -l -n 2
+python metalconduction.py -p -l -n 1
+# ------------------------------------
+
+# Deactivate
+conda deactivate

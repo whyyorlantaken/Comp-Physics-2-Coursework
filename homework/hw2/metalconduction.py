@@ -62,7 +62,8 @@ class SingleSolver:
                   x_max: float = 10,
                   t_max: float = 100,
                   ic_type: str = "Smooth",
-                  bc_type: str = "Fixed") -> None:
+                  bc_type: str = "Fixed",
+                  noise_factor: float = 0.01) -> None:
         """
         Integrate the temperature distribution.
         """
@@ -74,7 +75,8 @@ class SingleSolver:
             x_max,
             t_max,
             ic_type, 
-            bc_type
+            bc_type, 
+            noise_factor
         )
         
         # Integrate
@@ -108,7 +110,8 @@ class SingleSolver:
                           x_max: float = 10,
                           t_max: float = 100,
                           ic_type: str = "Smooth", 
-                          bc_type: str = "Fixed") -> None:
+                          bc_type: str = "Fixed",
+                          noise_factor: float = 0.01) -> None:
         """
         Initialize the integrator.
         """
@@ -122,7 +125,7 @@ class SingleSolver:
         self.r_factor = self.diffussivity * dt / dx**2
         
         # Determine conditions based on types
-        self._determine_conditions(ic_type, bc_type)
+        self._determine_conditions(ic_type, bc_type, noise_factor)
 
         # Matrix of temperature
         self.T = np.zeros((len(self.x), len(self.t)))
@@ -136,7 +139,7 @@ class SingleSolver:
         self.D2 = self._create_matrix(n, +1)
 
     def _detect_thermal_eq(self,
-                           threshold: float = 0.05,
+                           threshold: float = 0.01,
                            consecutive_steps: int = 2) -> None:
         """
         Detect the thermal equation.
@@ -163,22 +166,43 @@ class SingleSolver:
         # print(f"> {self.metal}: Thermal eq. not reached in {self.t[-1]:.2f} s :(")
         # return print(f"  - {self.metal}: {False}, {self.t[-1]:.2f} s")
         return False, self.t[-1]
+    
+    def _smooth_ic(self) -> None:
+        """
+        Smooth initial condition.
+        """
+        return 175 - 50 * np.cos(np.pi * self.x / 5) - self.x**2
+    
+    def _noisy_ic(self, noise_factor: float = 0.01) -> None:
+        """
+        Noisy initial condition.
+        """
+        # Maximum amplitude
+        smooth_profile = self._smooth_ic()
+        beta = noise_factor * np.max(smooth_profile)
+
+        # Random noise and apodization functions
+        f_x = np.random.normal(-1.0, 1.0, len(self.x))
+        g_x = np.ones(len(self.x))
+        g_x[0] = g_x[-1] = 0.0
+
+        return smooth_profile + beta * f_x * g_x
 
     def _determine_conditions(self, 
                               ic_type: str, 
-                              bc_type: str) -> None:
+                              bc_type: str,
+                              noise_factor: float = None) -> None:
         """
         Determine initial and boundary conditions based on types.
         """
         # Initial
         if ic_type == "Smooth":
-            self.ics = 175 - 50 * np.cos(np.pi * self.x / 5) - self.x**2
+            self.ics = self._smooth_ic()
         elif ic_type == "Noisy":
-            # TODO: Implement this part
-            pass
+            self.ics = self._noisy_ic(noise_factor)
         else:
             raise ValueError("Invalid initial condition type." +
-                                "Choose 'Smooth' or 'Noisy'.")
+                             "Choose 'Smooth' or 'Noisy'.")
         
         # Boundary
         if bc_type == "Fixed":
@@ -288,7 +312,8 @@ class MultipleSolver:
 
             # End time
             print()
-            print(f"> Total integration time: {(time.time() - start):.2f} s.")
+            total_time = time.time() - start
+            print(f"> Total integration time: {total_time:.2f} s.")
             print("━━" * 30)
             print("  "*8 + "PARALLEL INTEGRATION ENDED")
             print("━━" * 30)
@@ -324,12 +349,13 @@ class MultipleSolver:
 
             # End time
             print()
-            print(f"> Total integration time: {(time.time() - start):.2f} s.")
+            total_time = time.time() - start
+            print(f"> Total integration time: {total_time:.2f} s.")
             print("━━" * 30)
             print("  "*8 + "SEQUENTIAL INTEGRATION ENDED")
             print("━━" * 30)
 
-        return results
+        return results, total_time
     
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -447,6 +473,8 @@ if __name__ == "__main__":
     print("━━" * 30)
     print("  "*8 + "METAL CONDUCTION SIMULATION")
     print("━━" * 30)
+    print(f"> Running on: {os.uname()[1]}, {os.uname()[2]}")
+    print()
     print("> Parameters:")
     print(f"  - dt          {dt:.2f} s")
     print(f"  - dx          {dx:.2f} cm")
