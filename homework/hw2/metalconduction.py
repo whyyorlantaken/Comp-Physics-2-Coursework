@@ -18,11 +18,10 @@ Note: Azula is a character from
 
 import os
 import sys
+
 import time
 import argparse
-
 import numpy as np
-import matplotlib.pyplot as plt
 
 from joblib import Parallel, delayed
 
@@ -33,7 +32,7 @@ from joblib import Parallel, delayed
 diffusivities_dir = {
     "Copper":    1.11,
     "Iron":      0.23,
-    "Aluminum": 0.97,
+    "Aluminum":  0.97,
     "Brass":     0.34,
     "Steel":     0.18,
     "Zinc":      0.63,
@@ -47,13 +46,31 @@ diffusivities_dir = {
 
 class SingleSolver:
     """
+    Class to solve the heat equation for a rod of some
+    metal using the Crank-Nicholson method.
+    It's one-dimensional.
+
+    Parameters
+    ----------
+    metal : str
+        The metal to be used. Default is "Copper".
     """
     def __init__(self, metal: str = "Copper"):
         """
-        Initialize.
+        Initialize the solver.
         """
+        # Check if the metal is valid
+        if metal not in diffusivities_dir:
+            raise ValueError(f"Invalid metal: {metal}. " +
+                             f"Choose from {list(diffusivities_dir.keys())}.")
+        
+        # Attributes
         self.metal = metal
         self.diffussivity = diffusivities_dir[metal]
+
+    ##################################################
+    #                 Public methods                 #
+    ##################################################
 
     def integrate(self,
                   dt: float = 0.5,
@@ -65,7 +82,43 @@ class SingleSolver:
                   bc_type: str = "Fixed",
                   noise_factor: float = 0.01) -> None:
         """
-        Integrate the temperature distribution.
+        Crank-Nicholson integration method.
+
+        Parameters
+        ----------
+        dt : float
+            Time step.
+        dx : float
+            Space step.
+        x_min : float
+            Minimum x value.
+        x_max : float
+            Maximum x value.
+        t_max : float
+            Maximum time in seconds.
+        ic_type : str
+            Type of initial condition. 
+            "Smooth" or "Noisy".
+        bc_type : str
+            Type of boundary condition.
+            "Fixed" or "Varying".
+        noise_factor : float
+            Noise factor for the initial condition.
+            Default is 0.01.
+
+        Returns
+        -------
+        x : np.ndarray
+            Space vector.
+        t : np.ndarray
+            Time vector.
+        T : np.ndarray
+            Full temperature matrix.
+        eq_reached : bool
+            True if thermal equilibrium is reached.
+        eq_time : float
+            Time when thermal equilibrium is reached.
+            If not reached, it returns the maximum time.
         """
         # Setup the integrator
         self._integrator_setup(
@@ -102,6 +155,10 @@ class SingleSolver:
         eq_reached, eq_time = self._detect_thermal_eq()
 
         return self.x, self.t, self.T, eq_reached, eq_time
+    
+    ##################################################
+    #                 Private methods                #
+    ##################################################
 
     def _integrator_setup(self,
                           dt: float = 0.5,
@@ -113,13 +170,35 @@ class SingleSolver:
                           bc_type: str = "Fixed",
                           noise_factor: float = 0.01) -> None:
         """
-        Initialize the integrator.
+        Setup the integrator-needed variables.
+
+        Parameters
+        ----------
+        dt : float
+            Time step.
+        dx : float
+            Space step.
+        x_min : float
+            Minimum x value.
+        x_max : float
+            Maximum x value.
+        t_max : float
+            Maximum time in seconds.
+        ic_type : str
+            Type of initial condition. 
+            "Smooth" or "Noisy".
+        bc_type : str
+            Type of boundary condition.
+            "Fixed" or "Varying".
+        noise_factor : float
+            Noise factor for the initial condition.
+            Default is 0.01.
         """
         # Time and space vectors
         self.dt = dt
         self.dx = dx
-        self.x = np.arange(x_min, x_max + dx, dx)
-        self.t = np.arange(0, t_max + dt, dt)
+        self.x  = np.arange(x_min, x_max + dx, dx)
+        self.t  = np.arange(0, t_max + dt, dt)
 
         # R-factor
         self.r_factor = self.diffussivity * dt / dx**2
@@ -128,10 +207,10 @@ class SingleSolver:
         self._determine_conditions(ic_type, bc_type, noise_factor)
 
         # Matrix of temperature
-        self.T = np.zeros((len(self.x), len(self.t)))
-        self.T[0, :] = self.bcs[0]  
+        self.T        = np.zeros((len(self.x), len(self.t)))
+        self.T[0, :]  = self.bcs[0]  
         self.T[-1, :] = self.bcs[1]
-        self.T[:, 0] = self.ics
+        self.T[:, 0]  = self.ics
 
         # Matrices for the method
         n = len(self.x)
@@ -140,9 +219,26 @@ class SingleSolver:
 
     def _detect_thermal_eq(self,
                            threshold: float = 0.01,
-                           consecutive_steps: int = 2) -> None:
+                           consecutive_steps: int = 2) -> tuple:
         """
-        Detect the thermal equation.
+        Detect thermal equilibrium in the system.
+
+        Parameters
+        ----------
+        threshold : float
+            Threshold for the difference between consecutive profiles.
+            Default is 0.01.
+        consecutive_steps : int
+            Number of consecutive steps to consider thermal equilibrium.
+            Default is 2.
+
+        Returns
+        -------
+        eq_reached : bool
+            True if thermal equilibrium is reached.
+        eq_time : float
+            Time when thermal equilibrium is reached.
+            If not, it returns the maximum time.
         """
         # Average all profiles
         avg_temps = np.mean(self.T, axis = 0)
@@ -154,34 +250,47 @@ class SingleSolver:
             # Difference between consecutive profiles
             diff = np.abs(avg_temps[i] - avg_temps[i-1])
 
-            # Small changes have to be persistent
+            # It has to be a persistent small difference
             if diff < threshold:
                 count += 1
                 if count >= consecutive_steps:
-                    # return print(f"  - {self.metal}: {True}, {self.t[i-(consecutive_steps-1)]:.2f} s")
-                    return True, self.t[i-(consecutive_steps - 1)]
+                    return True, self.t[i - (consecutive_steps - 1)]
             else:
                 count = 0
         
-        # print(f"> {self.metal}: Thermal eq. not reached in {self.t[-1]:.2f} s :(")
-        # return print(f"  - {self.metal}: {False}, {self.t[-1]:.2f} s")
         return False, self.t[-1]
     
-    def _smooth_ic(self) -> None:
+    def _smooth_ic(self) -> np.ndarray:
         """
         Smooth initial condition.
+
+        Returns
+        -------
+        np.ndarray
+            The condition.
         """
         return 175 - 50 * np.cos(np.pi * self.x / 5) - self.x**2
     
-    def _noisy_ic(self, noise_factor: float = 0.01) -> None:
+    def _noisy_ic(self, noise_factor: float = 0.01) -> np.ndarray:
         """
         Noisy initial condition.
+
+        Parameters
+        ----------
+        noise_factor : float
+            Noise factor for the initial condition.
+            Default is 0.01.
+
+        Returns
+        -------
+        np.ndarray
+            The condition.
         """
         # Maximum amplitude
         smooth_profile = self._smooth_ic()
         beta = noise_factor * np.max(smooth_profile)
 
-        # Random noise and apodization functions
+        # Random noise and apodization function
         f_x = np.random.normal(-1.0, 1.0, len(self.x))
         g_x = np.ones(len(self.x))
         g_x[0] = g_x[-1] = 0.0
@@ -194,6 +303,15 @@ class SingleSolver:
                               noise_factor: float = None) -> None:
         """
         Determine initial and boundary conditions based on types.
+
+        Parameters
+        ----------
+        ic_type : str
+            Type of initial condition. "Smooth" or "Noisy".
+        bc_type : str
+            Type of boundary condition."Fixed" or "Varying".
+        noise_factor : float
+            Noise factor for the noisy initial condition.
         """
         # Initial
         if ic_type == "Smooth":
@@ -217,7 +335,21 @@ class SingleSolver:
                        n: int, 
                        sign: int) -> np.ndarray:
         """
-        Create a tridiagonal matrix for the Crank-Nicholson method.
+        Create matrices for the Crank-Nicholson method.
+        We noted the matrices could be constructed in 
+        the same way but with a opposite sign in some places.
+
+        Parameters
+        ----------
+        n : int
+            Size of the matrix.
+        sign : int
+            Sign to construct the matrix.
+
+        Returns
+        -------
+        np.ndarray
+            The matrix.
         """
         # Main diagonal
         diag = np.diag([2 - sign * 2 * self.r_factor]*(n - 2), 0)
@@ -232,22 +364,36 @@ class SingleSolver:
         matrix = diag + diag_minus + diag_plus
         
         return matrix
-    
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#     Multiple metals with optional parallelization
+#    Multiple metals with optional parallelization
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 class MultipleSolver:
     """
-    Parallelize the integration.
+    Class to solve the heat equation for multiple metals
+    using the Crank-Nicholson method. It can be used to
+    run serial or parallel simulations.
+
+    We deliberately did not use inheritance.
+
+    Parameters
+    ----------
+    metals : list
+        List of metals to be used. 
+        If None, all 8 metals are used.
+    parallel : bool
+        If True, the integration is done in parallel.
+    n_jobs : int
+        Number of jobs for parallel integration.
+        Default is 1.
     """
     def __init__(self, 
                  metals: list = None,
                  parallel: bool = False,
                  n_jobs: int = 1):
         """
-        Initialize.
+        Initialize the multiple solver.
         """
         # Metals
         if metals is None:
@@ -255,10 +401,14 @@ class MultipleSolver:
         else:
             self.all_metals = metals
 
-        # Others
+        # The rest
         self.n_jobs = n_jobs
         self.parallel = parallel
         self.integrators = [SingleSolver(metal) for metal in self.all_metals]
+
+    ##################################################
+    #                  Public method                 #
+    ##################################################
 
     def integrate(self,
                   dt: float = 0.5,
@@ -267,9 +417,39 @@ class MultipleSolver:
                   x_max: float = 10,
                   t_max: float = 100,
                   ic_type: str = "Smooth",
-                  bc_type: str = "Fixed") -> None   :
+                  bc_type: str = "Fixed",
+                  noise_factor: float = 0.01) -> tuple:
         """
-        Integrate the temperature distribution.
+        Multiple integration method.
+
+        Parameters
+        ----------
+        dt : float
+            Time step.
+        dx : float
+            Space step.
+        x_min : float
+            Minimum x value.
+        x_max : float
+            Maximum x value.
+        t_max : float
+            Maximum time in seconds.
+        ic_type : str
+            Type of initial condition. 
+            "Smooth" or "Noisy".
+        bc_type : str
+            Type of boundary condition.
+            "Fixed" or "Varying".
+        noise_factor : float
+            Noise factor for the initial condition.
+            Default is 0.01.
+
+        Returns
+        -------
+        results : list
+            List of results for each metal.
+        total_time : float
+            Total time for the integration.
         """
         # Info
         print("> Metals to be integrated:")
@@ -290,7 +470,7 @@ class MultipleSolver:
             # Start time
             start = time.time()
 
-            # Loop over all metals with parallelization
+            # Distribute the work
             results = Parallel(n_jobs = self.n_jobs)(
                 delayed(integrator.integrate)(
                     dt, 
@@ -299,14 +479,15 @@ class MultipleSolver:
                     x_max, 
                     t_max, 
                     ic_type, 
-                    bc_type
+                    bc_type,
+                    noise_factor
                 ) for integrator in self.integrators
             )
 
             # Thermal equilibrium
             for i, result in enumerate(results):
 
-                # Extract and print
+                # Extract
                 _, _, _, eq_reached, eq_time = result
                 print(f"  - {self.all_metals[i]}: {eq_reached}, {eq_time:.2f} s")
 
@@ -329,7 +510,7 @@ class MultipleSolver:
             # Start time
             start = time.time()
 
-            # Loop over all metals
+            # Each simulation one by one
             results = [integrator.integrate(
                 dt, 
                 dx, 
@@ -337,7 +518,8 @@ class MultipleSolver:
                 x_max, 
                 t_max, 
                 ic_type, 
-                bc_type
+                bc_type,
+                noise_factor
             ) for integrator in self.integrators]
 
             # Thermal equilibrium
@@ -357,30 +539,34 @@ class MultipleSolver:
 
         return results, total_time
     
-
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                      Argparse
+#            Parse command line arguments
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# Done solely for the parallelization part.
 
 def parse_args():
     """
-    Parse command line arguments.
+    Parser.
+
+    Returns
+    -------
+        Parsed arguments.
     """
-    # Create the parser
+    # Create it
     parser = argparse.ArgumentParser(description = "Metal conduction simulation.")
 
     # Integration parameters
     parser.add_argument(
         "-dt",
         type = float,
-        default = 0.05,
-        help = "Time step for the integration."
+        default = 0.1,
+        help = "Time step"
     )
     parser.add_argument(
         "-dx",
         type = float,
-        default = 0.02,
-        help = "Space step for the integration."
+        default = 0.1,
+        help = "Space step"
     )
     parser.add_argument(
         "-x_min",
@@ -417,6 +603,13 @@ def parse_args():
 
     # Others
     parser.add_argument(
+        "-m", "--metals",
+        type = str,
+        nargs = "+",
+        default = None,
+        help = "List of metals to be used."
+    )
+    parser.add_argument(
         "-n", "--n_jobs",
         type = int,
         default = 1,
@@ -435,12 +628,12 @@ def parse_args():
     return parser.parse_args()
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-#                      Main
+#                   Main execution
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     
 if __name__ == "__main__":
 
-    # Arguments
+    # Collect arguments
     args = parse_args()
     dt = args.dt
     dx = args.dx
@@ -449,6 +642,7 @@ if __name__ == "__main__":
     t_max = args.t_max
     ic_type = args.ic
     bc_type = args.bc
+    metals = args.metals
     parallel = args.parallel
     n_jobs = args.n_jobs
 
@@ -459,11 +653,11 @@ if __name__ == "__main__":
         if not os.path.exists("outputfolder"):
             os.makedirs("outputfolder")
 
-        # Save to log file
+        # Save all output
         log_filename = f"outputfolder/azula.{n_jobs}.{'par' if parallel else 'seq'}.log"
         sys.stdout = open(log_filename, "w")
 
-    # Header
+    # Header and info
     print("━━" * 30)
     print("             |                      '||          ")
     print("            |||    ......  ... ...   ||   ....   ")
@@ -473,11 +667,11 @@ if __name__ == "__main__":
     print("━━" * 30)
     print("  "*8 + "METAL CONDUCTION SIMULATION")
     print("━━" * 30)
-    print(f"> Running on: {os.uname()[1]}, {os.uname()[2]}")
+    print(f"> Running on: {os.uname()[1]}")
     print()
     print("> Parameters:")
-    print(f"  - dt          {dt:.2f} s")
-    print(f"  - dx          {dx:.2f} cm")
+    print(f"  - dt          {dt:.3f} s")
+    print(f"  - dx          {dx:.3f} cm")
     print(f"  - x_min      {x_min:.2f} cm")
     print(f"  - x_max       {x_max:.2f} cm")
     print(f"  - t_max       {t_max:.2f} s")
@@ -491,6 +685,7 @@ if __name__ == "__main__":
         parallel = parallel
     )
 
+    # Integrate
     results = solver.integrate(
         dt = dt,
         dx = dx,
@@ -500,13 +695,3 @@ if __name__ == "__main__":
         ic_type = ic_type,
         bc_type = bc_type
     )
-
-
-
-
-
-
-
-
-
-
